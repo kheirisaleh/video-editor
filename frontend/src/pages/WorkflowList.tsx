@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type WorkflowSummary } from "../api";
 import { Card, ErrorNote, ProgressBar, StatusBadge } from "../components/ui";
-import { fa, formatTime, stepLabel, t } from "../i18n";
+import { formatTime, stepLabel, t } from "../i18n";
 import { useLive } from "../live";
 
 export function WorkflowList() {
@@ -79,7 +79,7 @@ export function WorkflowList() {
                   <div className="space-y-1">
                     <ProgressBar value={w.progress} />
                     <p className="text-xs text-cocoa-500 dark:text-cream-300">
-                      {stepLabel[w.current_step ?? ""] ?? w.current_step} · {fa(Math.round(w.progress * 100))}٪
+                      {stepLabel[w.current_step ?? ""] ?? w.current_step} · {Math.round(w.progress * 100)}%
                     </p>
                   </div>
                 )}

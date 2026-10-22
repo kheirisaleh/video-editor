@@ -30,8 +30,12 @@ class Settings(BaseSettings):
     def exports_dir(self) -> Path:
         return self.data_dir / "exports"
 
+    @property
+    def music_dir(self) -> Path:
+        return self.data_dir / "music"
+
     def ensure_dirs(self) -> None:
-        for d in (self.data_dir, self.uploads_dir, self.work_dir, self.exports_dir):
+        for d in (self.data_dir, self.uploads_dir, self.work_dir, self.exports_dir, self.music_dir):
             d.mkdir(parents=True, exist_ok=True)
 
 

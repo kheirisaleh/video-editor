@@ -47,12 +47,25 @@ export interface WorkflowSummary {
   finished_at: string | null;
 }
 
+export interface Output {
+  index: number;
+  label: string;
+  duration: number;
+  video_url: string;
+  silent_url: string | null;
+  cover_url: string;
+  caption: string;
+  music: string | null;
+  size_bytes: number;
+}
+
 export interface Workflow extends WorkflowSummary {
   product_text: string;
   product_url: string;
   prompt: string;
   clips: Clip[];
   steps: Step[];
+  outputs: Output[];
 }
 
 export interface WorkflowInput {

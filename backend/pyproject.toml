@@ -10,6 +10,9 @@ dependencies = [
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "aiofiles>=24.1",
+    "opencv-python-headless>=4.10,<5",
+    "numpy>=2.5.4",
+    "pillow>=13.0.0",
 ]
 
 [dependency-groups]

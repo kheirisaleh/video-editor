@@ -28,7 +28,7 @@ def upload(client: TestClient, workflow_id: str, path: Path, name: str | None = 
 def test_full_ingest_flow(client: TestClient, sample_videos: dict[str, Path]) -> None:
     wf = create(client, prompt="یه ویدیوی آرام و دنج")
     assert wf["status"] == "draft"
-    assert [s["name"] for s in wf["steps"]] == ["ingest"]
+    assert [s["name"] for s in wf["steps"]] == ["ingest", "analyze", "plan", "render"]
 
     upload(client, wf["id"], sample_videos["vertical"], "IMG_0001.MOV")
     upload(client, wf["id"], sample_videos["horizontal"])
@@ -56,6 +56,17 @@ def test_full_ingest_flow(client: TestClient, sample_videos: dict[str, Path]) ->
     proxy = client.get(second["proxy_url"])
     assert proxy.status_code == 200
     assert len(proxy.content) > 1000
+
+    assert [s["status"] for s in done["steps"]] == ["done"] * 4
+    assert len(done["outputs"]) == 3
+    output = done["outputs"][0]
+    video = client.get(output["video_url"])
+    assert video.status_code == 200
+    assert len(video.content) > 10_000
+    assert output["silent_url"] is None
+    assert "Pr sample, no payment received." in output["caption"]
+    assert client.get(output["cover_url"]).headers["content-type"] == "image/jpeg"
+    assert client.get(f"/api/workflows/{wf['id']}/files/..%2Fstudio.db").status_code == 404
 
     listed = client.get("/api/workflows").json()
     assert listed[0]["id"] == wf["id"]

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, ApiError, type Step, type Workflow } from "../api";
+import { api, ApiError, type Output, type Step, type Workflow } from "../api";
 import { ClipPicker } from "../components/ClipPicker";
 import { Button, Card, ErrorNote, Ltr, ProgressBar, StatusBadge } from "../components/ui";
 import { useUploader } from "../components/useUploader";
-import { fa, formatBytes, formatTime, stepLabel, stepStatusLabel, t } from "../i18n";
+import { formatBytes, formatTime, stepLabel, stepStatusLabel, t } from "../i18n";
 import { useLive } from "../live";
 
 interface LogLine {
@@ -165,12 +165,22 @@ export function WorkflowDetail() {
             <StepRow key={s.name} step={s} />
           ))}
         </ol>
-        {wf.status === "done" && <p className="text-xs text-cocoa-400">{t.outputsSoon}</p>}
       </Card>
+
+      {wf.outputs.length > 0 && (
+        <Card className="space-y-3">
+          <h2 className="font-medium">{t.outputs}</h2>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {wf.outputs.map((o) => (
+              <OutputCard key={`${o.index}-${wf.finished_at}`} output={o} />
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card className="space-y-3">
         <h2 className="font-medium">
-          {t.clips} <span className="text-sm font-normal text-cocoa-400">({fa(wf.clips.length)})</span>
+          {t.clips} <span className="text-sm font-normal text-cocoa-400">({wf.clips.length})</span>
         </h2>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {wf.clips.map((c) => (
@@ -180,12 +190,12 @@ export function WorkflowDetail() {
                   <img src={c.thumbnail_url} alt="" className="size-full object-cover" loading="lazy" />
                 ) : (
                   <div className="flex size-full items-center justify-center text-xs text-cocoa-400">
-                    {fa(c.position + 1)}
+                    {c.position + 1}
                   </div>
                 )}
                 {c.probe && (
                   <span className="absolute bottom-1 left-1 rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white">
-                    {fa(c.probe.duration.toFixed(1))}s
+                    {c.probe.duration.toFixed(1)}s
                   </span>
                 )}
                 {wf.status === "draft" && (
@@ -266,7 +276,7 @@ function StepRow({ step }: { step: Step }) {
         <span>{stepLabel[step.name] ?? step.name}</span>
         <div className="flex items-center gap-2">
           {step.status === "running" && (
-            <span className="text-xs text-cocoa-400">{fa(Math.round(step.progress * 100))}٪</span>
+            <span className="text-xs text-cocoa-400">{Math.round(step.progress * 100)}%</span>
           )}
           <StatusBadge status={step.status} label={stepStatusLabel[step.status]} />
         </div>
@@ -283,5 +293,58 @@ function StepRow({ step }: { step: Step }) {
         </p>
       )}
     </li>
+  );
+}
+
+function OutputCard({ output }: { output: Output }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(output.caption);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard needs https or localhost; the caption stays selectable below
+    }
+  };
+  const link =
+    "inline-flex min-h-9 flex-1 items-center justify-center rounded-lg border border-cream-300 px-2 text-xs font-medium hover:bg-cream-100 dark:border-cocoa-600 dark:hover:bg-cocoa-700";
+  return (
+    <div className="space-y-2">
+      <video
+        src={output.video_url}
+        poster={output.cover_url}
+        controls
+        playsInline
+        preload="none"
+        className="aspect-[9/16] w-full rounded-xl bg-black object-cover"
+      />
+      <div className="flex items-baseline justify-between gap-2 text-sm">
+        <span className="font-medium">
+          {t.variant(output.index)} · {output.label}
+        </span>
+        <span className="shrink-0 text-xs text-cocoa-400">
+          {t.seconds(output.duration)} · {formatBytes(output.size_bytes)}
+        </span>
+      </div>
+      {output.music && <p className="truncate text-xs text-cocoa-400">♪ {output.music}</p>}
+      <div className="flex gap-2">
+        <a href={`${output.video_url}?download=1`} className={link}>
+          {t.download}
+        </a>
+        {output.silent_url && (
+          <a href={`${output.silent_url}?download=1`} className={link}>
+            {t.downloadSilent}
+          </a>
+        )}
+      </div>
+      <details className="rounded-lg bg-cream-100 px-3 py-2 text-xs dark:bg-cocoa-700/60">
+        <summary className="cursor-pointer font-medium">{t.caption}</summary>
+        <p className="mt-2 select-all whitespace-pre-wrap">{output.caption}</p>
+        <button onClick={copy} className="mt-2 underline">
+          {copied ? t.copied : t.copy}
+        </button>
+      </details>
+    </div>
   );
 }

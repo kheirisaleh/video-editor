@@ -15,7 +15,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     STUDIO_DATA_DIR=/data \
     STUDIO_FRONTEND_DIR=/app/frontend
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /usr/local/bin/uv
 

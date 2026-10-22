@@ -1,6 +1,7 @@
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/inter/600.css";
 import "@fontsource/vazirmatn/400.css";
-import "@fontsource/vazirmatn/500.css";
-import "@fontsource/vazirmatn/600.css";
 import "./index.css";
 
 import { StrictMode } from "react";
@@ -15,7 +16,7 @@ import { WorkflowList } from "./pages/WorkflowList";
 function Header() {
   const connected = useLiveConnected();
   const tab = ({ isActive }: { isActive: boolean }) =>
-    `rounded-lg px-3 py-1.5 text-sm transition ${
+    `whitespace-nowrap rounded-lg px-3 py-1.5 text-sm transition ${
       isActive ? "bg-cream-200 font-medium dark:bg-cocoa-700" : "text-cocoa-500 hover:text-cocoa-700 dark:text-cream-300"
     }`;
   return (

@@ -64,7 +64,7 @@ The shortest video (21 s, 8 texts, one feature per shot) has by far the most vie
 | Variants | 3 per workflow, each with a different strategy |
 | Concurrency | Workflows run one at a time, others wait in a queue |
 | Access | Home network only, no login |
-| UI language | Persian (right to left), with English as a second language |
+| UI language | English; Persian accepted in product text and idea prompt |
 | Models | Local, on another machine in the LAN, or external API, configurable per pipeline step |
 | Hardware | Unknown yet, so every heavy step must be able to run on a remote machine |
 | Priority | Output quality over speed |
@@ -225,3 +225,5 @@ Each pipeline step (vision, planning, copywriting, quality review, music tagging
 | 7 | Quality review step, style profile editor |
 
 Each phase ends with something that runs end to end, so the system is usable early and improves step by step.
+
+Progress: phases 0, 1 and 2 are done. A rule based planner stands in for phase 4 until a model is configured, and a plain music folder stands in for the music bank of phase 6. The UI is in English; Persian is accepted in the product text and the idea prompt and is handled by the language model steps.

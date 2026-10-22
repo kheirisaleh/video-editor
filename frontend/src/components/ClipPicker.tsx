@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { fa, formatBytes, t } from "../i18n";
+import { formatBytes, t } from "../i18n";
 import { Ltr, ProgressBar } from "./ui";
 
 export interface PendingFile {
@@ -74,7 +74,7 @@ export function ClipPicker({
           {files.map((f, i) => (
             <li key={f.key} className="rounded-xl bg-cream-100 px-3 py-2 dark:bg-cocoa-700/60">
               <div className="flex items-center gap-3 text-sm">
-                <span className="w-5 shrink-0 text-cocoa-400">{fa(i + 1)}</span>
+                <span className="w-5 shrink-0 text-cocoa-400">{i + 1}</span>
                 <Ltr className="min-w-0 flex-1 truncate">{f.file.name}</Ltr>
                 <Ltr className="shrink-0 text-xs text-cocoa-400">{formatBytes(f.file.size)}</Ltr>
                 {!disabled && !f.done && (

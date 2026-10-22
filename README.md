@@ -6,15 +6,20 @@ See [docs/DESIGN.md](docs/DESIGN.md) for the full design, the reference style an
 
 ## Status
 
-Phase 0 is done:
+Working end to end without any AI model:
 
-* Installable web app (PWA) in Persian, right to left, works on phone and desktop
-* Create workflows with footage upload (streamed, with per file progress), product link, product text and idea prompt
+* Installable web app (PWA) in English that works on phone and desktop. Product text and idea prompt accept English or Persian.
+* Workflows with streamed footage upload, product link or description and an idea prompt
 * Queue that runs one workflow at a time, with cancel, retry and resume after a restart
 * Live progress, step status and logs over WebSocket
-* Ingest step: probes every clip, creates thumbnails and low resolution proxies for analysis
+* Pipeline: **ingest** (probe, thumbnails, proxies), **analyze** (shot detection, sharpness, exposure, shake, face and subject position), **plan** (three edit plans with a rule based planner) and **render** (1080x1920 TikTok MP4 with styled text overlays, colour emoji, music, a silent copy, cover and post caption)
 
-Rendering, footage analysis, AI planning, product scraping and the music bank follow in the next phases.
+Known limits of the rule based planner, which the language model planner (next phase) removes:
+
+* It cannot see what a shot shows, so overlay texts are not matched to the content of each shot and the hook shot is chosen by image quality, not by content.
+* It cannot translate, so Persian product text and the idea prompt are not used for the overlays.
+
+Music: put royalty free tracks (mp3, m4a, wav) into `data/music`. Each variant uses a different track. Without music the videos are rendered with a silent audio track.
 
 ## Run with Docker (home server)
 

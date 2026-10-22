@@ -1,3 +1,4 @@
+import re
 import shutil
 from pathlib import Path
 from typing import Annotated
@@ -14,6 +15,7 @@ from studio.events import EventType, emit
 from studio.models import Clip, StepStatus, Workflow, WorkflowStatus, new_id, utcnow
 from studio.schemas import (
     ClipOut,
+    OutputOut,
     StepOut,
     WorkflowCreate,
     WorkflowOut,
@@ -104,7 +106,29 @@ def _workflow_out(session: Session, wf: Workflow) -> WorkflowOut:
         prompt=wf.prompt,
         clips=[_clip_out(c) for c in wf.clips],
         steps=[StepOut.model_validate(s) for s in wf.steps],
+        outputs=_outputs(wf),
     )
+
+
+def _outputs(wf: Workflow) -> list[OutputOut]:
+    render = next((s for s in wf.steps if s.name == "render"), None)
+    if render is None or render.status != StepStatus.DONE or not render.result:
+        return []
+    base = f"/api/workflows/{wf.id}/files"
+    return [
+        OutputOut(
+            index=o["index"],
+            label=o["label"],
+            duration=o["duration"],
+            video_url=f"{base}/{o['video']}",
+            silent_url=f"{base}/{o['silent']}" if o.get("silent") else None,
+            cover_url=f"{base}/{o['cover']}",
+            caption=o["caption"],
+            music=o.get("music"),
+            size_bytes=o["size_bytes"],
+        )
+        for o in render.result.get("outputs", [])
+    ]
 
 
 @router.get("/workflows", response_model=list[WorkflowSummary])
@@ -314,6 +338,25 @@ def _enqueue(session: Session, wf: Workflow) -> None:
         status=wf.status,
         queue_position=_queue_positions(session).get(wf.id),
     )
+
+
+EXPORT_NAME = re.compile(r"^variant_\d+(_silent)?\.(mp4|jpg|txt)$")
+
+
+@router.get("/workflows/{workflow_id}/files/{name}")
+def export_file(
+    workflow_id: str,
+    name: str,
+    settings: AppSettings,
+    download: bool = False,
+) -> FileResponse:
+    if not EXPORT_NAME.match(name):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown file")
+    path = settings.exports_dir / workflow_id / name
+    if not path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "file missing")
+    filename = f"{workflow_id}_{name}" if download else None
+    return FileResponse(path, filename=filename, headers={"Cache-Control": "no-cache"})
 
 
 def _clip_file(session: Session, settings: Settings, clip_id: str, kind: str) -> Path:

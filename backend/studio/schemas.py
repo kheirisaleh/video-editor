@@ -61,12 +61,25 @@ class WorkflowSummary(BaseModel):
     finished_at: datetime | None
 
 
+class OutputOut(BaseModel):
+    index: int
+    label: str
+    duration: float
+    video_url: str
+    silent_url: str | None
+    cover_url: str
+    caption: str
+    music: str | None
+    size_bytes: int
+
+
 class WorkflowOut(WorkflowSummary):
     product_text: str
     product_url: str
     prompt: str
     clips: list[ClipOut]
     steps: list[StepOut]
+    outputs: list[OutputOut]
 
 
 class Health(BaseModel):

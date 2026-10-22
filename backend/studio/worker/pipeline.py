@@ -10,11 +10,14 @@ from studio.media.ffmpeg import Cancelled
 from studio.models import StepRun, StepStatus, Workflow, WorkflowStatus, utcnow
 from studio.worker.context import StepContext
 from studio.worker.steps import Step, StepError
+from studio.worker.steps.analyze import AnalyzeStep
 from studio.worker.steps.ingest import IngestStep
+from studio.worker.steps.plan import PlanStep
+from studio.worker.steps.render import RenderStep
 
 log = logging.getLogger(__name__)
 
-STEPS: list[Step] = [IngestStep()]
+STEPS: list[Step] = [IngestStep(), AnalyzeStep(), PlanStep(), RenderStep()]
 
 
 def step_names() -> list[str]:

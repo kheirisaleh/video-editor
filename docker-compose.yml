@@ -1,0 +1,25 @@
+services:
+  api:
+    build: .
+    image: studio:latest
+    restart: unless-stopped
+    ports:
+      - "${STUDIO_PORT:-8000}:8000"
+    volumes:
+      - ${STUDIO_DATA:-./data}:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    image: studio:latest
+    restart: unless-stopped
+    command: ["studio-worker"]
+    volumes:
+      - ${STUDIO_DATA:-./data}:/data
+    stop_grace_period: 2m
+    depends_on:
+      api:
+        condition: service_started

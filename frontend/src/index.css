@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply min-h-dvh bg-cream-100 font-sans text-cocoa-900 antialiased dark:bg-cocoa-900 dark:text-cream-100;
+  }
+  bdi {
+    unicode-bidi: isolate;
+  }
+}

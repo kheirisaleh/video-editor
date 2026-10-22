@@ -83,7 +83,7 @@ The shortest video (21 s, 8 texts, one feature per shot) has by far the most vie
 | Model access | Provider layer over Ollama and OpenAI compatible APIs | Any local or remote model without code changes |
 | Frontend | React, TypeScript, Vite, Tailwind, installable PWA | Works like an app on phone and desktop |
 | Deployment | Docker Compose | One command install on the server; worker image can also run on the gaming PC |
-| Quality | pytest, ruff, mypy, ESLint | Tests and linting from the first phase |
+| Quality | pytest, ruff, TypeScript strict mode | Tests and linting from the first phase |
 
 ## 5. Architecture
 

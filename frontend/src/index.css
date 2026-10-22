@@ -13,3 +13,17 @@
     unicode-bidi: isolate;
   }
 }
+
+@font-face {
+  font-family: "TikTok Sans";
+  src: url("/api/fonts/TikTokSans.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Source Serif 4";
+  src: url("/api/fonts/SourceSerif4.ttf") format("truetype");
+  font-weight: 200 900;
+  font-display: swap;
+}

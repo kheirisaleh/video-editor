@@ -13,7 +13,7 @@ from studio.config import Settings, get_settings
 from studio.db import get_session
 from studio.media.ffmpeg import FFmpegError, audio_duration
 from studio.options import RenderOptions, load_defaults, save_defaults
-from studio.render.text import STYLES, emoji_source
+from studio.render.text import FONTS_DIR, STYLES, emoji_source
 
 router = APIRouter(prefix="/api")
 
@@ -66,6 +66,15 @@ def _track(path: Path) -> Track:
         tempo=info.tempo if info else None,
         url=f"/api/music/{path.name}",
     )
+
+
+@router.get("/fonts/{name}")
+def font_file(name: str) -> FileResponse:
+    """The overlay fonts, so the options page can preview them."""
+    allowed = {spec["file"] for spec in STYLES.values()}
+    if name not in allowed:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "font not found")
+    return FileResponse(FONTS_DIR / name, headers={"Cache-Control": "public, max-age=86400"})
 
 
 @router.get("/music", response_model=list[Track])

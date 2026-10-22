@@ -11,7 +11,8 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 cd "$tmp"
 npm pack --silent "emoji-datasource-apple@${VERSION}" >/dev/null
-tar -xzf "emoji-datasource-apple-${VERSION}.tgz" package/img/apple/64
+# Extract everything: busybox tar (Alpine) cannot select a folder by name.
+tar -xzf "emoji-datasource-apple-${VERSION}.tgz"
 cd - >/dev/null
 mkdir -p "$TARGET"
 cp "$tmp"/package/img/apple/64/*.png "$TARGET"/

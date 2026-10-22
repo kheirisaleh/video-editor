@@ -59,6 +59,38 @@ export interface Output {
   size_bytes: number;
 }
 
+export interface RenderOptions {
+  variants: number;
+  min_duration: number;
+  max_duration: number;
+  music: boolean;
+  music_track: string | null;
+  beat_sync: boolean;
+  texts: boolean;
+  emoji: boolean;
+  call_to_action: boolean;
+  text_style: "auto" | "sans" | "serif";
+  silent_copy: boolean;
+  quality: "standard" | "high";
+  hashtags: string[];
+  disclosure: string;
+}
+
+export interface AppSettings {
+  defaults: RenderOptions;
+  emoji: string;
+  fonts: Record<string, string>;
+}
+
+export interface Track {
+  name: string;
+  title: string;
+  duration: number;
+  size_bytes: number;
+  tempo: number | null;
+  url: string;
+}
+
 export interface Workflow extends WorkflowSummary {
   product_text: string;
   product_url: string;
@@ -66,6 +98,7 @@ export interface Workflow extends WorkflowSummary {
   clips: Clip[];
   steps: Step[];
   outputs: Output[];
+  options: RenderOptions;
 }
 
 export interface WorkflowInput {
@@ -73,6 +106,7 @@ export interface WorkflowInput {
   product_text?: string;
   product_url?: string | null;
   prompt?: string;
+  options?: Partial<RenderOptions>;
 }
 
 export class ApiError extends Error {
@@ -118,24 +152,42 @@ export const api = {
   retry: (id: string) => request<Workflow>("POST", `/api/workflows/${id}/retry`),
   removeClip: (id: string, clipId: string) =>
     request<void>("DELETE", `/api/workflows/${id}/clips/${clipId}`),
+  settings: () => request<AppSettings>("GET", "/api/settings"),
+  saveDefaults: (options: RenderOptions) =>
+    request<RenderOptions>("PUT", "/api/settings/defaults", options),
+  music: () => request<Track[]>("GET", "/api/music"),
+  removeMusic: (name: string) => request<void>("DELETE", `/api/music/${encodeURIComponent(name)}`),
 };
 
-/** Upload with XHR because fetch cannot report upload progress. */
 export function uploadClip(
   workflowId: string,
   file: File,
   onProgress: (fraction: number) => void,
   signal?: AbortSignal,
 ): Promise<Clip> {
+  const url = `/api/workflows/${workflowId}/clips?filename=${encodeURIComponent(file.name)}`;
+  return uploadFile<Clip>(url, file, onProgress, signal);
+}
+
+export function uploadMusic(file: File, onProgress: (fraction: number) => void): Promise<Track> {
+  return uploadFile<Track>(`/api/music?filename=${encodeURIComponent(file.name)}`, file, onProgress);
+}
+
+/** Upload with XHR because fetch cannot report upload progress. */
+function uploadFile<T>(
+  url: string,
+  file: File,
+  onProgress: (fraction: number) => void,
+  signal?: AbortSignal,
+): Promise<T> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    const url = `/api/workflows/${workflowId}/clips?filename=${encodeURIComponent(file.name)}`;
     xhr.open("PUT", url);
     xhr.setRequestHeader("Content-Type", "application/octet-stream");
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(JSON.parse(xhr.responseText) as Clip);
+        resolve(JSON.parse(xhr.responseText) as T);
       } else {
         let detail = `${xhr.status}`;
         try {

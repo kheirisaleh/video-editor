@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../api";
+import { api, type RenderOptions } from "../api";
 import { ClipPicker } from "../components/ClipPicker";
+import { OptionsForm, optionsSummary, optionsValid } from "../components/OptionsForm";
 import { Button, Card, ErrorNote } from "../components/ui";
 import { useUploader } from "../components/useUploader";
 import { t } from "../i18n";
@@ -19,12 +20,21 @@ export function NewWorkflow() {
   const [workflowId, setWorkflowId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [options, setOptions] = useState<RenderOptions | null>(null);
+
+  useEffect(() => {
+    api
+      .settings()
+      .then((s) => setOptions(s.defaults))
+      .catch((e) => setError((e as Error).message));
+  }, []);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     if (uploader.files.length === 0) return setError(t.needClips);
     if (!productUrl.trim() && !productText.trim()) return setError(t.needProduct);
+    if (options && !optionsValid(options)) return setError(t.opt.lengthError);
 
     setSubmitting(true);
     try {
@@ -33,6 +43,7 @@ export function NewWorkflow() {
         product_text: productText,
         product_url: productUrl.trim() || null,
         prompt,
+        options: options ?? undefined,
       };
       // Reuse the draft when a previous attempt failed half way through the uploads.
       const id = workflowId ?? (await api.create(input)).id;
@@ -112,6 +123,23 @@ export function NewWorkflow() {
           />
         </label>
       </Card>
+
+      {options && (
+        <Card>
+          <details className="group">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="font-medium">{t.options}</h2>
+                <p className="truncate text-xs text-cocoa-400">{optionsSummary(options).join(" · ")}</p>
+              </div>
+              <span className="text-cocoa-400 transition group-open:rotate-180">⌄</span>
+            </summary>
+            <div className="mt-4 border-t border-cream-200 pt-4 dark:border-cocoa-700">
+              <OptionsForm value={options} onChange={setOptions} disabled={busy} />
+            </div>
+          </details>
+        </Card>
+      )}
 
       {error && <ErrorNote>{error}</ErrorNote>}
 

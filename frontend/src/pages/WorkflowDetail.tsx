@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError, type Output, type Step, type Workflow } from "../api";
 import { ClipPicker } from "../components/ClipPicker";
+import { optionsSummary } from "../components/OptionsForm";
 import { Button, Card, ErrorNote, Ltr, ProgressBar, StatusBadge } from "../components/ui";
 import { useUploader } from "../components/useUploader";
 import { formatBytes, formatTime, stepLabel, stepStatusLabel, t } from "../i18n";
@@ -105,6 +106,7 @@ export function WorkflowDetail() {
             {formatTime(wf.created_at)}
             {wf.queue_position ? ` · ${t.queuePosition(wf.queue_position)}` : ""}
           </p>
+          <p className="text-xs text-cocoa-400">{optionsSummary(wf.options).join(" · ")}</p>
         </div>
         <StatusBadge status={wf.status} />
       </div>

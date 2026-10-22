@@ -21,6 +21,7 @@ PERSIAN = re.compile(r"[؀-ۿ]")
 EMOJIS = ["✨", "🤍", "👀", "🥹"]
 CTA = "Link below the video ✨"
 MIN_SHOT = 1.2
+FPS = 30
 TEXT_Y = 0.58
 TEXT_Y_ALTERNATIVES = (0.72, 0.36)
 
@@ -169,8 +170,12 @@ def ordered_pool(cands: list[Candidate], strategy: Strategy) -> list[Candidate]:
 
 
 def choose(pool: list[Candidate], needed: int, clip_count: int) -> list[Candidate]:
-    """Pick candidates with variety: no clip dominates unless the footage is short."""
-    per_clip = max(2, math.ceil(needed / max(clip_count, 1)) + 1)
+    """Pick candidates with variety: no clip dominates unless the footage is short.
+
+    The rest of the pool follows the picks, so the timeline can still reach the
+    minimum length when the picked shots are not enough.
+    """
+    per_clip = max(1, math.ceil(needed / max(clip_count, 1)))
     picked: list[Candidate] = []
     used: dict[str, int] = {}
     for strict in (True, False):
@@ -184,20 +189,28 @@ def choose(pool: list[Candidate], needed: int, clip_count: int) -> list[Candidat
     return picked
 
 
+def arrange_all(
+    pool: list[Candidate], strategy: Strategy, needed: int, clip_count: int
+) -> list[Candidate]:
+    picked = arrange(choose(pool, needed, clip_count), strategy)
+    rest = [c for c in pool if c not in picked]
+    return picked + _avoid_repeats(rest, picked[-1].clip_id if picked else None)
+
+
 def arrange(picked: list[Candidate], strategy: Strategy) -> list[Candidate]:
     if strategy.order == "chronological":
         return sorted(picked, key=lambda c: (c.clip_index, c.start))
     if strategy.order == "people":
         return _avoid_repeats(sorted(picked, key=lambda c: c.score, reverse=True))
-    return [picked[0], *_avoid_repeats(picked[1:])] if picked else picked
+    return [picked[0], *_avoid_repeats(picked[1:], picked[0].clip_id)] if picked else picked
 
 
-def _avoid_repeats(items: list[Candidate]) -> list[Candidate]:
+def _avoid_repeats(items: list[Candidate], before: str | None = None) -> list[Candidate]:
     """Reorder so the same clip does not appear twice in a row when avoidable."""
     result: list[Candidate] = []
     rest = list(items)
     while rest:
-        prev = result[-1].clip_id if result else None
+        prev = result[-1].clip_id if result else before
         nxt = next((c for c in rest if c.clip_id != prev), rest[0])
         rest.remove(nxt)
         result.append(nxt)
@@ -246,9 +259,13 @@ def build_timeline(
             beat = _nearest_beat(beats, t + desired, t + min_shot, t + longest)
             if beat is not None:
                 length = beat - t
+        # Cuts sit on the frame grid, so rounding in the renderer cannot add up to drift.
+        length = round((t + length) * FPS) / FPS - t
+        if length > longest + 1e-6:
+            length -= 1 / FPS
         # Centre the shot inside the analysed window, where the scores were measured.
         start = cand.start + max(0.0, (avail - length) / 2) * 0.5
-        draft.shots.append(Shot(cand, round(start, 3), round(start + length, 3), round(t, 3)))
+        draft.shots.append(Shot(cand, round(start, 4), round(start + length, 4), round(t, 4)))
         t += length
     return draft
 
@@ -260,9 +277,9 @@ def stretch_to_minimum(draft: Draft, minimum: float) -> None:
         if missing <= 0.01:
             break
         room = shot.cand.end - shot.end
-        grow = min(room, missing)
+        grow = math.floor(min(room, missing + 1 / FPS) * FPS) / FPS
         if grow > 0:
-            shot.end = round(shot.end + grow, 3)
+            shot.end = round(shot.end + grow, 4)
             missing -= grow
     t = 0.0
     for shot in draft.shots:
@@ -326,8 +343,8 @@ def build_plan(
         plan_music = music.music.model_copy(update={"start": round(start, 3)})
 
     pool = ordered_pool(cands, strategy)
-    needed = max(2, math.ceil(maximum / MIN_SHOT))
-    order = arrange(choose(pool, needed, clip_count), strategy)
+    needed = max(2, math.ceil(target / strategy.shot) + 1)
+    order = arrange_all(pool, strategy, needed, clip_count)
     draft = build_timeline(order, strategy, target, maximum, beats)
     if not draft.shots:
         # Only very short clips: accept shorter shots rather than failing.

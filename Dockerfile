@@ -1,10 +1,12 @@
-# Frontend build
+# Frontend build and Apple style emoji images
 FROM node:22-alpine AS frontend
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
 RUN npm run build
+COPY scripts/fetch-emoji.sh /tmp/fetch-emoji.sh
+RUN sh /tmp/fetch-emoji.sh /app/emoji/apple
 
 # Runtime: API and worker share this image
 FROM python:3.12-slim
@@ -13,7 +15,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     STUDIO_DATA_DIR=/data \
-    STUDIO_FRONTEND_DIR=/app/frontend
+    STUDIO_FRONTEND_DIR=/app/frontend \
+    STUDIO_EMOJI_DIR=/app/emoji/apple
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
@@ -25,6 +28,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY backend/ ./
 RUN uv sync --frozen --no-dev
 COPY --from=frontend /app/dist /app/frontend
+COPY --from=frontend /app/emoji /app/emoji
 
 ENV PATH="/app/backend/.venv/bin:$PATH"
 VOLUME ["/data"]

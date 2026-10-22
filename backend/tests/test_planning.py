@@ -111,7 +111,8 @@ def test_cuts_land_on_beats() -> None:
     t = 0.0
     for seg in plan.segments:
         t += seg.duration
-        assert min(abs(t - b) for b in beats) < 0.01, f"cut at {t:.3f} is off beat"
+        assert min(abs(t - b) for b in beats) <= 1 / 60 + 0.001, f"cut at {t:.3f} is off beat"
+        assert abs(t * 30 - round(t * 30)) < 0.01, "cuts must sit on the frame grid"
 
 
 def test_without_music_or_beat_sync() -> None:
@@ -145,6 +146,14 @@ def test_texts_are_readable_and_do_not_overlap() -> None:
             assert a.end <= b.start + 1e-6
         for text in plan.texts:
             assert text.end - text.start >= 1.0
+
+
+def test_no_clip_twice_in_a_row_and_good_variety() -> None:
+    for plan in plan_variants(analysis(clips=8), info(), RenderOptions(), [music()]):
+        ids = [s.clip_id for s in plan.segments]
+        if plan.strategy != "story":  # the story keeps clip order, jump cuts are wanted
+            assert all(a != b for a, b in zip(ids, ids[1:], strict=False)), ids
+        assert max(ids.count(i) for i in set(ids)) <= 2, ids
 
 
 def test_text_moves_away_from_faces() -> None:

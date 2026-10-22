@@ -12,7 +12,7 @@ from studio.db import init_db, session_scope
 from studio.models import Workflow, WorkflowStatus
 from studio.schemas import Health
 
-from . import live, workflows
+from . import live, settings, workflows
 
 
 @asynccontextmanager
@@ -27,6 +27,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Studio", version=__version__, lifespan=lifespan)
     app.include_router(workflows.router)
     app.include_router(live.router)
+    app.include_router(settings.router)
 
     @app.get("/api/health", response_model=Health)
     def health() -> Health:

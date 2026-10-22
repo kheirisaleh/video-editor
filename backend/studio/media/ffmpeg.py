@@ -70,6 +70,29 @@ def probe(path: Path) -> dict[str, Any]:
     }
 
 
+def audio_duration(path: Path) -> float:
+    """Duration of an audio file in seconds; raises FFmpegError if it is not readable."""
+    cmd = [
+        _binary("ffprobe"),
+        "-v",
+        "error",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
+        "-select_streams",
+        "a",
+        str(path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise FFmpegError(f"ffprobe failed: {proc.stderr.strip()[:300]}")
+    data = json.loads(proc.stdout)
+    if not data.get("streams"):
+        raise FFmpegError("file contains no audio stream")
+    return round(float(data.get("format", {}).get("duration") or 0.0), 2)
+
+
 def _rotation(stream: dict[str, Any]) -> int:
     for side in stream.get("side_data_list", []) or []:
         if "rotation" in side:

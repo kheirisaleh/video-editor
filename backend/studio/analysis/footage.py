@@ -16,7 +16,7 @@ import numpy as np
 SAMPLE_FPS = 10.0
 ANALYSIS_WIDTH = 320
 CUT_THRESHOLD = 0.55
-SEGMENT_SECONDS = 2.4
+SEGMENT_SECONDS = 3.0
 WINDOW_STEP = 0.4
 EDGE_MARGIN = 0.25
 
@@ -39,6 +39,7 @@ class Sample:
     motion: float
     subject_x: float
     face: bool
+    face_y: float | None = None
 
 
 @dataclass
@@ -53,6 +54,7 @@ class Segment:
     face_ratio: float
     subject_x: float
     shot: int
+    face_y: float | None = None
 
     @property
     def duration(self) -> float:
@@ -97,6 +99,7 @@ def sample_clip(
     face_every = max(int(SAMPLE_FPS / 2), 1)
     last_subject = 0.5
     last_face = False
+    last_face_y: float | None = None
     index = 0
     sampled = 0
     while True:
@@ -129,7 +132,7 @@ def sample_clip(
                 cuts.append(round(t, 3))
 
         if sampled % face_every == 0:
-            last_subject, last_face = _subject_position(gray)
+            last_subject, last_face, last_face_y = _subject_position(gray)
 
         samples.append(
             Sample(
@@ -139,6 +142,7 @@ def sample_clip(
                 motion=motion,
                 subject_x=last_subject,
                 face=last_face,
+                face_y=last_face_y,
             )
         )
         prev_gray, prev_hist = gray, hist
@@ -151,23 +155,26 @@ def sample_clip(
     return samples, cuts, duration, width, height
 
 
-def _subject_position(gray: np.ndarray) -> tuple[float, bool]:
-    """Horizontal centre of interest in 0..1: the largest face, else the edge energy."""
+def _subject_position(gray: np.ndarray) -> tuple[float, bool, float | None]:
+    """Horizontal centre of interest in 0..1: the largest face, else the edge energy.
+
+    Also returns the vertical centre of the face, used to keep text off faces.
+    """
     faces = _faces().detectMultiScale(
         gray, scaleFactor=1.15, minNeighbors=5, minSize=(gray.shape[0] // 10, gray.shape[0] // 10)
     )
     if len(faces):
-        x, _, w, _ = max(faces, key=lambda f: f[2] * f[3])
-        return float((x + w / 2) / gray.shape[1]), True
+        x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+        return float((x + w / 2) / gray.shape[1]), True, float((y + h / 2) / gray.shape[0])
     gx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
     gy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
     energy = cv2.magnitude(gx, gy).sum(axis=0)
     if energy.sum() <= 0:
-        return 0.5, False
+        return 0.5, False, None
     cols = np.arange(energy.size, dtype=np.float32)
     centre = float((energy * cols).sum() / energy.sum() / energy.size)
     # Edge energy is a weak signal, so pull it towards the middle.
-    return 0.5 + (centre - 0.5) * 0.6, False
+    return 0.5 + (centre - 0.5) * 0.6, False, None
 
 
 def analyze_clip(
@@ -192,13 +199,15 @@ def analyze_clip(
     return result
 
 
-def _window_stats(window: list[Sample], reference: float) -> dict[str, float]:
+def _window_stats(window: list[Sample], reference: float) -> dict[str, float | None]:
     sharp = np.mean([s.sharpness for s in window]) / reference
     bright = np.mean([s.brightness for s in window])
     motion = np.mean([s.motion for s in window[1:]]) if len(window) > 1 else 0.0
     faces = np.mean([1.0 if s.face else 0.0 for s in window])
     subject = float(np.median([s.subject_x for s in window]))
+    face_ys = [s.face_y for s in window if s.face_y is not None]
     return {
+        "face_y": float(np.median(face_ys)) if face_ys else None,
         "sharp": float(min(sharp, 1.5)),
         "bright": float(bright),
         "motion": float(motion),
@@ -207,7 +216,7 @@ def _window_stats(window: list[Sample], reference: float) -> dict[str, float]:
     }
 
 
-def score_window(stats: dict[str, float]) -> float:
+def score_window(stats: dict[str, float | None]) -> float:
     """Higher is better. Sharp, well exposed, some action but no shaking."""
     exposure = 1.0 - min(abs(stats["bright"] - 125.0) / 125.0, 1.0)
     motion = stats["motion"]
@@ -247,6 +256,7 @@ def _best_windows(
                     face_ratio=round(stats["faces"], 2),
                     subject_x=round(stats["subject"], 3),
                     shot=shot,
+                    face_y=round(stats["face_y"], 3) if stats["face_y"] is not None else None,
                 )
             )
         t += WINDOW_STEP

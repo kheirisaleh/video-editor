@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 from studio.models import StepStatus, WorkflowStatus
+from studio.options import RenderOptions
 
 
 class WorkflowCreate(BaseModel):
@@ -11,6 +12,9 @@ class WorkflowCreate(BaseModel):
     product_text: str = Field(default="", max_length=20_000)
     product_url: HttpUrl | None = None
     prompt: str = Field(default="", max_length=5_000)
+    options: dict[str, Any] | None = Field(
+        default=None, description='overrides of the default options, e.g. {"music": false}'
+    )
 
 
 class WorkflowUpdate(BaseModel):
@@ -18,6 +22,7 @@ class WorkflowUpdate(BaseModel):
     product_text: str | None = Field(default=None, max_length=20_000)
     product_url: HttpUrl | None = None
     prompt: str | None = Field(default=None, max_length=5_000)
+    options: dict[str, Any] | None = None
 
 
 class ClipOut(BaseModel):
@@ -80,6 +85,7 @@ class WorkflowOut(WorkflowSummary):
     clips: list[ClipOut]
     steps: list[StepOut]
     outputs: list[OutputOut]
+    options: RenderOptions
 
 
 class Health(BaseModel):

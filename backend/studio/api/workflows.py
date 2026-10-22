@@ -13,6 +13,7 @@ from studio.config import Settings, get_settings
 from studio.db import get_session, session_scope
 from studio.events import EventType, emit
 from studio.models import Clip, StepStatus, Workflow, WorkflowStatus, new_id, utcnow
+from studio.options import load_defaults, merge, workflow_options
 from studio.schemas import (
     ClipOut,
     OutputOut,
@@ -107,6 +108,7 @@ def _workflow_out(session: Session, wf: Workflow) -> WorkflowOut:
         clips=[_clip_out(c) for c in wf.clips],
         steps=[StepOut.model_validate(s) for s in wf.steps],
         outputs=_outputs(wf),
+        options=workflow_options(session, wf.options),
     )
 
 
@@ -131,6 +133,16 @@ def _outputs(wf: Workflow) -> list[OutputOut]:
     ]
 
 
+def _validated_options(session: Session, current: dict | None, overrides: dict | None) -> dict:
+    """Snapshot of the defaults with the overrides applied, so later changes to the
+    defaults do not alter a workflow that was already created."""
+    base = merge(load_defaults(session), current)
+    try:
+        return merge(base, overrides).model_dump()
+    except ValueError as exc:
+        raise HTTPException(422, f"invalid options: {exc}") from exc
+
+
 @router.get("/workflows", response_model=list[WorkflowSummary])
 def list_workflows(
     session: DbSession,
@@ -153,6 +165,7 @@ def create_workflow(body: WorkflowCreate, session: DbSession) -> WorkflowOut:
         product_text=body.product_text.strip(),
         product_url=str(body.product_url) if body.product_url else "",
         prompt=body.prompt.strip(),
+        options=_validated_options(session, None, body.options),
     )
     ensure_step_rows(wf)
     session.add(wf)
@@ -171,6 +184,8 @@ def update_workflow(workflow_id: str, body: WorkflowUpdate, session: DbSession) 
     wf = _get(session, workflow_id)
     _require(wf, WorkflowStatus.DRAFT, WorkflowStatus.FAILED, WorkflowStatus.CANCELLED)
     data = body.model_dump(exclude_unset=True)
+    if "options" in data:
+        wf.options = _validated_options(session, wf.options, data.pop("options"))
     for key, value in data.items():
         if key == "product_url":
             value = str(value) if value else ""

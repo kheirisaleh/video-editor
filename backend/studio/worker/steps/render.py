@@ -2,7 +2,8 @@ from typing import Any
 
 from studio.db import session_scope
 from studio.media.ffmpeg import probe
-from studio.models import Clip
+from studio.models import Clip, Workflow
+from studio.options import workflow_options
 from studio.render.video import SourceClip, cover, render_plan, strip_audio
 from studio.worker.context import StepContext
 from studio.worker.steps import StepError
@@ -28,6 +29,8 @@ class RenderStep:
                 )
                 for c in s.query(Clip).filter_by(workflow_id=ctx.workflow_id)
             }
+            wf = s.get(Workflow, ctx.workflow_id)
+            options = workflow_options(s, wf.options if wf else None)
 
         export = ctx.export_dir
         for old in export.glob("variant_*"):
@@ -59,11 +62,12 @@ class RenderStep:
                 music,
                 video,
                 ctx.work_dir / "render" / f"v{i}",
+                quality=options.quality,
                 on_progress=report,
                 should_cancel=ctx.should_cancel,
             )
             silent = None
-            if music is not None:
+            if music is not None and options.silent_copy:
                 silent = export / f"variant_{i}_silent.mp4"
                 strip_audio(video, silent)
             cover(video, export / f"variant_{i}.jpg")

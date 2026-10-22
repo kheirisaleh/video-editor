@@ -18,6 +18,7 @@ class PlanSegment(BaseModel):
     end: float = Field(gt=0)
     crop_x: float = Field(default=0.5, ge=0, le=1, description="horizontal centre of the 9:16 crop")
     speed: float = Field(default=1.0, ge=0.25, le=4.0)
+    gamma: float = Field(default=1.0, ge=0.6, le=1.6, description="exposure match to other shots")
 
     @property
     def duration(self) -> float:

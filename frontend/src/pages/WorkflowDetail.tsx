@@ -143,6 +143,16 @@ export function WorkflowDetail() {
             {t.retry}
           </Button>
         )}
+        {(wf.status === "done" || wf.status === "failed" || wf.status === "cancelled") && (
+          <Button
+            variant="secondary"
+            title={t.rerunHint}
+            disabled={acting}
+            onClick={() => act(() => api.rerun(wf.id, "product"))}
+          >
+            {t.rerun}
+          </Button>
+        )}
         {canRemove && (
           <Button
             variant="danger"
@@ -167,6 +177,7 @@ export function WorkflowDetail() {
             <StepRow key={s.name} step={s} />
           ))}
         </ol>
+        <PlanInfo steps={wf.steps} />
       </Card>
 
       {wf.outputs.length > 0 && (
@@ -347,6 +358,23 @@ function OutputCard({ output }: { output: Output }) {
           {copied ? t.copied : t.copy}
         </button>
       </details>
+    </div>
+  );
+}
+
+function PlanInfo({ steps }: { steps: Step[] }) {
+  const plan = steps.find((s) => s.name === "plan" && s.status === "done");
+  if (!plan?.result) return null;
+  const planner = String(plan.result.planner ?? "");
+  const notes = (plan.result.notes as string[] | undefined) ?? [];
+  return (
+    <div className="space-y-1 border-t border-cream-200 pt-3 text-xs text-cocoa-500 dark:border-cocoa-700 dark:text-cream-300">
+      {planner && <p>{t.planner(planner)}</p>}
+      {notes.map((n) => (
+        <p key={n} className="text-amber-700 dark:text-amber-300">
+          ⚠ {n}
+        </p>
+      ))}
     </div>
   );
 }

@@ -73,12 +73,12 @@ def answer(schema: dict[str, Any], texts: list[str], images: int) -> dict[str, A
 
 
 class FakeAi:
-    def __init__(self) -> None:
+    def __init__(self, host: str = "127.0.0.1", port: int = 0) -> None:
         self.requests: list[dict[str, Any]] = []
         self.fail_json_schema = False
         self.down = False
         handler = self._handler()
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        self.server = ThreadingHTTPServer((host, port), handler)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
 
     @property

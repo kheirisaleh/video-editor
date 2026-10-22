@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, type AppSettings, type RenderOptions } from "../api";
+import { AiSettingsCard } from "../components/AiSettingsCard";
 import { OptionsForm, optionsValid } from "../components/OptionsForm";
 import { Button, Card, ErrorNote } from "../components/ui";
-import { t } from "../i18n";
+import { formatBytes, t } from "../i18n";
 
 export function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -40,6 +41,7 @@ export function SettingsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">{t.settings}</h1>
+      <AiSettingsCard />
       <Card className="space-y-4">
         <div>
           <h2 className="font-medium">{t.defaults}</h2>
@@ -58,6 +60,15 @@ export function SettingsPage() {
           <dd>{settings.emoji}</dd>
           <dt className="text-cocoa-400">{t.fonts}</dt>
           <dd>{Object.values(settings.fonts).join(", ")}</dd>
+          <dt className="text-cocoa-400">{t.storage}</dt>
+          <dd>
+            {t.storageLine(
+              formatBytes(
+                settings.storage.uploads + settings.storage.work + settings.storage.exports + settings.storage.music,
+              ),
+              formatBytes(settings.storage.free),
+            )}
+          </dd>
         </dl>
       </Card>
     </div>

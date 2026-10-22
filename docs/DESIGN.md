@@ -226,4 +226,4 @@ Each pipeline step (vision, planning, copywriting, quality review, music tagging
 
 Each phase ends with something that runs end to end, so the system is usable early and improves step by step.
 
-Progress: phases 0, 1, 2 and 6 are done, and phase 7's style options are in place (font choice, text, emoji and music switches, length range). A rule based planner stands in for phase 4 until a model is configured. The UI is in English; Persian is accepted in the product text and the idea prompt and is handled by the language model steps.
+Progress: all phases are built. The model steps (product card, shot understanding, edit planning) run as soon as a model is configured in the settings page; until then the rule based planner is used. The UI is in English; Persian is accepted in the product text and the idea prompt.

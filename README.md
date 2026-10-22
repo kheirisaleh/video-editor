@@ -16,9 +16,26 @@ docker compose up -d --build
 
 Open `http://<server-ip>:8000` on the phone or desktop. On the phone use "Add to Home Screen" to install it like an app. Then:
 
-1. **Music**: add a few royalty free tracks (mp3, m4a, wav). They are analysed for tempo and beats on upload.
-2. **Settings**: set your default video options once.
-3. **New**: choose footage, add the product link or description, adjust the options if needed and start.
+1. **Settings, AI model**: connect a model (see below) and press **Test connection**.
+2. **Music**: add a few royalty free tracks (mp3, m4a, wav). They are analysed for tempo and beats on upload.
+3. **Settings**: set your default video options once.
+4. **New**: choose footage, add the product link or description, write your idea in English or Persian, adjust the options if needed and start.
+
+## Connecting an AI model
+
+The model watches your shots, picks the opening moment, matches every overlay text to the shot that shows it, writes in your style and understands Persian. Configure it on the Settings page:
+
+| Provider | Server URL | Models |
+|---|---|---|
+| Claude API | (empty) | Default `claude-opus-5-5` for text and vision; API key from console.anthropic.com |
+| Ollama on the gaming PC | `http://<pc-ip>:11434/v1` | A vision model such as `qwen2.5vl:7b` and a text model such as `qwen3:14b` |
+| LM Studio, vLLM, llama.cpp | their OpenAI compatible `/v1` URL | as served |
+
+For Ollama on another machine, start it so it listens on the network (`OLLAMA_HOST=0.0.0.0 ollama serve`) and pull the models first. Small local models work better with fewer **Shots per request**.
+
+If the model is not configured or not reachable, the workflow still finishes with the rule based editor and says so on the workflow page. Turn on **Require the model** to fail instead; **Retry** then continues once the model is back. **Edit again** on a finished workflow plans and renders again with the current options and model, without preparing the footage again.
+
+The API key is stored on the server only and never sent back to the browser. Instead of the settings page it can also be given as the `STUDIO_AI_API_KEY` environment variable.
 
 Update to a new version with `git pull && docker compose up -d --build`. Data is kept.
 
@@ -45,9 +62,11 @@ data/
 * Queue that runs one workflow at a time, with cancel, retry and resume after a restart
 * Live progress, step status and logs
 * Pipeline:
-  * **ingest**: probe, thumbnails, analysis proxies
+  * **ingest**: probe, thumbnails, analysis proxies; iPhone HDR (HLG, Dolby Vision) is converted to natural SDR
+  * **product**: reads the product link and builds an English product card from page, text and idea
   * **analyze**: shot detection, sharpness, exposure, shake, face and subject position
-  * **plan**: up to three edit plans (short hook, unboxing story, soft vibe)
+  * **understand** (AI): the vision model describes every usable moment and the feature it shows
+  * **plan**: up to three edits (short hook, unboxing story, soft vibe); the model chooses shots, order and texts, the planner keeps timing, beats and length
   * **render**: 1080x1920 H.264 TikTok video, cover, post caption, optional silent copy
 
 ### Options
@@ -75,12 +94,15 @@ Defaults are set on the Settings page; every workflow can override them.
 * Exposure is matched between shots; a gentle, natural grade
 * Music starts on a downbeat, is loudness normalised to −16 LUFS and fades out
 
-### Known limits of the rule based planner
+### Without a model
 
-These go away with the language model planner (next phase):
+The rule based editor cannot see what a shot shows, so overlay texts are not matched to the content of each shot and the opening shot is chosen by image quality. It cannot translate, so Persian product text and the idea prompt are not used for the overlays.
 
-* It cannot see what a shot shows, so overlay texts are not matched to the content of each shot and the hook shot is chosen by image quality, not by content.
-* It cannot translate, so Persian product text and the idea prompt are not used for the overlays.
+### Notes for the first run
+
+* iPhone Safari may compress videos picked from the Photos library. If the uploaded clips look softer than the originals, pick them through the Files app instead, or set Settings, Photos, Transfer to Mac or PC to "Keep Originals".
+* Without HTTPS the browser allows "Add to Home Screen" but not offline caching, and the copy button for captions may not work; the caption text can still be selected.
+* There is no login. Keep port 8000 inside the home network.
 
 ## Development
 

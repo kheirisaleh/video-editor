@@ -80,6 +80,34 @@ export interface AppSettings {
   defaults: RenderOptions;
   emoji: string;
   fonts: Record<string, string>;
+  storage: { uploads: number; work: number; exports: number; music: number; free: number; total: number };
+}
+
+export type AiProvider = "none" | "anthropic" | "openai";
+
+export interface AiSettings {
+  provider: AiProvider;
+  base_url: string;
+  api_key_set: boolean;
+  text_model: string;
+  vision_model: string;
+  effort: "low" | "medium" | "high" | "xhigh";
+  shots_per_request: number;
+  timeout: number;
+  required: boolean;
+}
+
+export interface AiSettingsInput extends Omit<AiSettings, "api_key_set"> {
+  api_key?: string | null;
+}
+
+export interface AiTestResult {
+  ok: boolean;
+  provider: string;
+  text_ok: boolean;
+  vision_ok: boolean;
+  seconds: number;
+  detail: string;
 }
 
 export interface Track {
@@ -156,6 +184,11 @@ export const api = {
   saveDefaults: (options: RenderOptions) =>
     request<RenderOptions>("PUT", "/api/settings/defaults", options),
   music: () => request<Track[]>("GET", "/api/music"),
+  ai: () => request<AiSettings>("GET", "/api/settings/ai"),
+  saveAi: (input: AiSettingsInput) => request<AiSettings>("PUT", "/api/settings/ai", input),
+  testAi: () => request<AiTestResult>("POST", "/api/settings/ai/test"),
+  rerun: (id: string, from: string) =>
+    request<Workflow>("POST", `/api/workflows/${id}/rerun?from=${encodeURIComponent(from)}`),
   removeMusic: (name: string) => request<void>("DELETE", `/api/music/${encodeURIComponent(name)}`),
 };
 

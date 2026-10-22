@@ -2,7 +2,12 @@
 
 Self hosted service that turns raw product footage into ready to post TikTok videos in the creator's own aesthetic. Upload clips from the phone, add the product link or description and an optional idea (English or Persian), and follow every workflow live while it waits in the queue and runs.
 
-See [docs/DESIGN.md](docs/DESIGN.md) for the full design, the reference style analysis and the build phases.
+Documentation:
+
+* [docs/DESIGN.md](docs/DESIGN.md): design, reference style analysis, pipeline
+* [CLAUDE.md](CLAUDE.md): rules for developing and fixing bugs (for people and AI assistants)
+* [CONTRIBUTING.md](CONTRIBUTING.md): short development workflow
+* [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): finding and reporting bugs
 
 ## Quick start on the home server
 

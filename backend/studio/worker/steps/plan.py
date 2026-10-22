@@ -3,15 +3,26 @@ from pathlib import Path
 from typing import Any
 
 from studio import music as library
+from studio.ai.client import AiError
+from studio.ai.director import write_scripts
 from studio.config import Settings
 from studio.db import session_scope
 from studio.models import Workflow
 from studio.options import RenderOptions, workflow_options
-from studio.planning.baseline import STRATEGIES, MusicChoice, ProductInfo, plan_variants
+from studio.planning.baseline import (
+    STRATEGIES,
+    MusicChoice,
+    ProductInfo,
+    Script,
+    candidates_from,
+    plan_variants,
+)
 from studio.planning.schema import EditPlan, PlanMusic
 from studio.worker.context import StepContext
-from studio.worker.steps import StepError
+from studio.worker.steps import StepError, ai_client, ai_failed
 from studio.worker.steps.analyze import ANALYSIS_FILE
+from studio.worker.steps.product import load_card
+from studio.worker.steps.understand import load_labels
 
 
 def plans_dir(work_dir: Path) -> Path:
@@ -88,14 +99,51 @@ class PlanStep:
             assert wf is not None
             info = ProductInfo(wf.title, wf.product_text, wf.product_url, wf.prompt)
             options = workflow_options(s, wf.options)
+            prompt = wf.prompt
+        card = load_card(ctx.work_dir)
+        if card is not None:
+            info.card_name = card.name
+            info.card_features = card.features
+            info.card_hashtags = card.hashtags
 
         ctx.progress(0.1, "analysing music")
         music = music_choices(ctx.settings, options, ctx)
-        ctx.progress(0.7, "planning edits")
+
+        planner = "rule based"
+        scripts: dict[str, Script] | None = None
+        settings, client = ai_client(ctx)
+        if client is not None and card is not None:
+            ctx.progress(0.4, f"writing the edits with {client.name}")
+            labels = load_labels(ctx.work_dir)
+            if not labels:
+                ctx.log(
+                    "no shot labels from the vision step, the model plans from the "
+                    "footage analysis only",
+                    "warning",
+                )
+            try:
+                scripts = write_scripts(
+                    client, card, prompt, candidates_from(analysis), labels, options
+                )
+                planner = client.name
+                for key, script in scripts.items():
+                    ctx.log(f'{key}: hook "{script.hook}", {len(script.shots)} shots')
+            except AiError as exc:
+                ai_failed(ctx, settings, exc)
+        ctx.progress(0.8, "timing cuts and texts")
         try:
-            plans = plan_variants(analysis, info, options, music)
+            plans = plan_variants(analysis, info, options, music, scripts)
         except ValueError as exc:
             raise StepError(str(exc)) from exc
+        missing = [
+            s.label
+            for s in STRATEGIES[: options.variants]
+            if scripts is not None and s.key not in scripts
+        ]
+        if missing:
+            ctx.log(
+                f"the model skipped {', '.join(missing)}; used the rule based plan there", "warning"
+            )
 
         target = plans_dir(ctx.work_dir)
         for old in target.glob("variant_*.json"):
@@ -109,7 +157,8 @@ class PlanStep:
         for note in dict.fromkeys(n for p in plans for n in p.notes):
             ctx.log(note, "warning")
         return {
-            "planner": "rule based",
+            "planner": planner,
+            "notes": list(dict.fromkeys(n for p in plans for n in p.notes)),
             "variants": [
                 {"label": p.label, "duration": round(p.duration, 2), "shots": len(p.segments)}
                 for p in plans

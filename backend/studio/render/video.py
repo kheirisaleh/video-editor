@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from studio.media import ffmpeg
+from studio.media.ffmpeg import sdr_filter
 from studio.planning.schema import EditPlan
 from studio.render.text import TextLook, render_text, typewriter_frames
 
@@ -26,6 +27,7 @@ class SourceClip:
     path: Path
     width: int
     height: int
+    hdr: str | None = None
 
 
 @dataclass
@@ -63,7 +65,8 @@ def build_command(
         speed = f",setpts=PTS/{seg.speed}" if seg.speed != 1.0 else ""
         gamma = f",eq=gamma={seg.gamma:.3f}" if abs(seg.gamma - 1.0) > 0.005 else ""
         filters.append(
-            f"[{i}:v]{crop_filter(src, seg.crop_x)},setsar=1,fps={FPS}{gamma},{GRADE},"
+            f"[{i}:v]{sdr_filter(src.hdr)}{crop_filter(src, seg.crop_x)},"
+            f"setsar=1,fps={FPS}{gamma},{GRADE},"
             f"format=yuv420p{speed},setpts=PTS-STARTPTS[v{i}]"
         )
     n = len(plan.segments)

@@ -62,6 +62,8 @@ def probe(path: Path) -> dict[str, Any]:
         "pix_fmt": video.get("pix_fmt"),
         "has_audio": audio is not None,
         "bitrate": int(data.get("format", {}).get("bit_rate") or 0),
+        "hdr": hdr_kind(video),
+        "color_transfer": video.get("color_transfer"),
         "orientation": "vertical"
         if height > width
         else "horizontal"
@@ -93,6 +95,35 @@ def audio_duration(path: Path) -> float:
     return round(float(data.get("format", {}).get("duration") or 0.0), 2)
 
 
+HDR_TRANSFERS = {"arib-std-b67": "hlg", "smpte2084": "pq"}
+
+
+def hdr_kind(stream: dict[str, Any]) -> str | None:
+    """'hlg' or 'pq' for HDR video (iPhones record HLG by default), else None."""
+    kind = HDR_TRANSFERS.get(str(stream.get("color_transfer") or ""))
+    if kind:
+        return kind
+    for side in stream.get("side_data_list", []) or []:
+        if "DOVI" in str(side.get("side_data_type", "")):
+            return "hlg"  # Dolby Vision profile 8.4 from iPhones has an HLG base layer
+    return None
+
+
+def sdr_filter(hdr: str | None) -> str:
+    """Filter chain that turns HDR into natural looking SDR (BT.709), or '' for SDR.
+
+    Without it, HLG and PQ footage looks flat and grey once it is encoded as SDR.
+    """
+    if not hdr:
+        return ""
+    peak = 100 if hdr == "hlg" else 203
+    return (
+        f"zscale=t=linear:npl={peak},format=gbrpf32le,zscale=p=bt709,"
+        "tonemap=tonemap=mobius:param=0.6:desat=0,"
+        "zscale=t=bt709:m=bt709:r=tv,format=yuv420p,"
+    )
+
+
 def _rotation(stream: dict[str, Any]) -> int:
     for side in stream.get("side_data_list", []) or []:
         if "rotation" in side:
@@ -109,7 +140,9 @@ def _fps(rate: str) -> float:
         return 0.0
 
 
-def thumbnail(src: Path, dst: Path, at_seconds: float, width: int = 360) -> None:
+def thumbnail(
+    src: Path, dst: Path, at_seconds: float, width: int = 360, hdr: str | None = None
+) -> None:
     run(
         [
             "-ss",
@@ -119,7 +152,7 @@ def thumbnail(src: Path, dst: Path, at_seconds: float, width: int = 360) -> None
             "-frames:v",
             "1",
             "-vf",
-            f"scale={width}:-2",
+            f"{sdr_filter(hdr)}scale={width}:-2",
             "-q:v",
             "4",
             str(dst),
@@ -134,14 +167,15 @@ def make_proxy(
     height: int,
     on_progress: Callable[[float], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
+    hdr: str | None = None,
 ) -> None:
-    """Low resolution, constant frame rate copy used for fast analysis."""
+    """Low resolution, constant frame rate SDR copy used for fast analysis."""
     run(
         [
             "-i",
             str(src),
             "-vf",
-            f"scale=-2:'min({height},ih)':flags=bicubic,fps=30",
+            f"{sdr_filter(hdr)}scale=-2:'min({height},ih)':flags=bicubic,fps=30",
             "-c:v",
             "libx264",
             "-preset",

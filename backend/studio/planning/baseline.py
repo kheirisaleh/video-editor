@@ -49,6 +49,23 @@ class ProductInfo:
     text: str
     url: str
     prompt: str
+    # Filled from the product card when one exists (model or page based).
+    card_name: str = ""
+    card_features: list[str] = field(default_factory=list)
+    card_hashtags: list[str] = field(default_factory=list)
+
+
+@dataclass
+class Script:
+    """A model's edit decision: shot order, overlay texts and caption.
+
+    Timing stays with the planner, so length range, beat sync and readability rules
+    hold no matter what the model returns.
+    """
+
+    hook: str
+    shots: list[tuple[str, str | None]]  # (segment id, overlay text or None)
+    caption: str = ""
 
 
 @dataclass
@@ -69,6 +86,7 @@ class Candidate:
     source_ratio: float  # width / height of the source clip
     brightness: float = 125.0
     face_y: float | None = None
+    id: str = ""
 
     @property
     def key(self) -> tuple[str, float]:
@@ -101,13 +119,17 @@ def candidates_from(analysis: dict) -> list[Candidate]:
     out = []
     for index, clip in enumerate(analysis["clips"]):
         ratio = clip.get("source_width", 9) / max(clip.get("source_height", 16), 1)
-        for seg in clip["segments"]:
+        for k, seg in enumerate(clip["segments"]):
             out.append(Candidate(
                 clip["clip_id"], index, seg["start"], seg["end"], seg["score"],
                 seg["face_ratio"], seg["subject_x"], ratio,
-                seg.get("brightness", 125.0), seg.get("face_y"),
+                seg.get("brightness", 125.0), seg.get("face_y"), segment_id(index, k),
             ))  # fmt: skip
     return out
+
+
+def segment_id(clip_index: int, segment_index: int) -> str:
+    return f"c{clip_index + 1}s{segment_index + 1}"
 
 
 # Product text ---------------------------------------------------------------------
@@ -116,6 +138,8 @@ def candidates_from(analysis: dict) -> list[Candidate]:
 def product_features(info: ProductInfo) -> tuple[str, list[str], list[str]]:
     """Return product name, short feature lines and notes for the user."""
     notes: list[str] = []
+    if info.card_name:
+        return info.card_name, list(info.card_features), notes
     raw = info.text
     if PERSIAN.search(raw) or PERSIAN.search(info.title):
         notes.append(
@@ -325,8 +349,11 @@ def build_plan(
     info: ProductInfo,
     options: RenderOptions,
     music: MusicChoice | None,
+    script: Script | None = None,
 ) -> EditPlan:
     name, features, notes = product_features(info)
+    if script is not None:
+        notes = []
     minimum, maximum = options.min_duration, options.max_duration
     target = minimum + (maximum - minimum) * strategy.position
 
@@ -344,7 +371,15 @@ def build_plan(
 
     pool = ordered_pool(cands, strategy)
     needed = max(2, math.ceil(target / strategy.shot) + 1)
-    order = arrange_all(pool, strategy, needed, clip_count)
+    if script is not None:
+        by_id = {c.id: c for c in cands}
+        chosen = [by_id[i] for i in dict.fromkeys(i for i, _ in script.shots) if i in by_id]
+        # The model's order first; the rest of the pool only fills up a short script.
+        order = chosen + _avoid_repeats(
+            [c for c in pool if c not in chosen], chosen[-1].clip_id if chosen else None
+        )
+    else:
+        order = arrange_all(pool, strategy, needed, clip_count)
     draft = build_timeline(order, strategy, target, maximum, beats)
     if not draft.shots:
         # Only very short clips: accept shorter shots rather than failing.
@@ -371,21 +406,23 @@ def build_plan(
 
     total = draft.total
     style = strategy.style if options.text_style == "auto" else options.text_style
-    texts = (
-        overlay_texts(strategy, draft.shots, total, name, features, options, style)
-        if options.texts
-        else []
-    )
-    if options.texts and not features:
+    if not options.texts:
+        texts: list[PlanText] = []
+    elif script is not None:
+        texts = script_texts(script, draft.shots, total, options, style)
+    else:
+        texts = overlay_texts(strategy, draft.shots, total, name, features, options, style)
+    if options.texts and not features and script is None:
         notes.append(
             "No English feature list found in the product text, so only the hook "
             "and the call to action are shown."
         )
 
-    hook = hook_line(strategy, name)
+    hook = (script.caption or script.hook) if script is not None else hook_line(strategy, name)
     tag = re.sub(r"[^a-z0-9]", "", name.lower())[:30]
-    hashtags = [f"#{tag}"] if tag and tag != "newfavorite" else []
-    hashtags += [h for h in options.hashtags if h.lower() != f"#{tag}"]
+    hashtags = list(info.card_hashtags) or ([f"#{tag}"] if tag and tag != "newfavorite" else [])
+    hashtags += options.hashtags
+    hashtags = list(dict.fromkeys(h for h in hashtags if h))
     caption_lines = [hook]
     if options.call_to_action:
         caption_lines.append(CTA)
@@ -456,8 +493,64 @@ def overlay_texts(
     return texts
 
 
+def script_texts(
+    script: Script, shots: list[Shot], total: float, options: RenderOptions, style: str
+) -> list[PlanText]:
+    """Place the model's texts on the shots they were written for."""
+
+    def clean(text: str) -> str:
+        return text if options.emoji else strip_emoji(text)
+
+    wanted = {i: t for i, t in script.shots if t}
+    texts: list[PlanText] = []
+    hook = clean(script.hook)
+    if hook:
+        hook_end = min(max(readable(hook), shots[0].at + shots[0].length), total)
+        texts.append(PlanText(
+            text=hook, start=0.15, end=round(hook_end, 2), y=text_y(shots, 0.15, hook_end),
+            animation="typewriter" if style == "serif" else "fade",
+        ))  # fmt: skip
+    has_cta = options.call_to_action and len(shots) > 1
+    cta_start = shots[-1].at if has_cta else total
+    cursor = texts[-1].end + 0.15 if texts else 0.0
+    starts = [s.at for s in shots if s.cand.id in wanted]
+    for shot in shots[1:-1] if has_cta else shots[1:]:
+        text = wanted.get(shot.cand.id)
+        if not text or shot.at < cursor - 0.05:
+            continue
+        text = clean(text)
+        later = [t for t in starts if t > shot.at + 0.01]
+        limit = min([cta_start - 0.1, *(t - 0.05 for t in later)])
+        end = min(max(shot.at + shot.length - 0.05, shot.at + readable(text)), limit)
+        if end - shot.at < 1.0:
+            continue
+        texts.append(
+            PlanText(
+                text=text,
+                start=round(shot.at + 0.1, 2),
+                end=round(end, 2),
+                y=text_y(shots, shot.at, end),
+            )
+        )
+        cursor = end + 0.15
+    if has_cta:
+        texts.append(
+            PlanText(
+                text=clean(CTA),
+                start=round(cta_start + 0.1, 2),
+                end=round(total, 2),
+                y=text_y(shots, cta_start, total),
+            )
+        )
+    return texts
+
+
 def plan_variants(
-    analysis: dict, info: ProductInfo, options: RenderOptions, music: list[MusicChoice]
+    analysis: dict,
+    info: ProductInfo,
+    options: RenderOptions,
+    music: list[MusicChoice],
+    scripts: dict[str, Script] | None = None,
 ) -> list[EditPlan]:
     cands = candidates_from(analysis)
     if not cands:
@@ -466,5 +559,6 @@ def plan_variants(
     plans = []
     for i, strategy in enumerate(STRATEGIES[: options.variants]):
         choice = music[i % len(music)] if music else None
-        plans.append(build_plan(strategy, cands, clip_count, info, options, choice))
+        script = (scripts or {}).get(strategy.key)
+        plans.append(build_plan(strategy, cands, clip_count, info, options, choice, script))
     return plans

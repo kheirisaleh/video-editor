@@ -182,7 +182,13 @@ def get_workflow(workflow_id: str, session: DbSession) -> WorkflowOut:
 @router.patch("/workflows/{workflow_id}", response_model=WorkflowOut)
 def update_workflow(workflow_id: str, body: WorkflowUpdate, session: DbSession) -> WorkflowOut:
     wf = _get(session, workflow_id)
-    _require(wf, WorkflowStatus.DRAFT, WorkflowStatus.FAILED, WorkflowStatus.CANCELLED)
+    _require(
+        wf,
+        WorkflowStatus.DRAFT,
+        WorkflowStatus.FAILED,
+        WorkflowStatus.CANCELLED,
+        WorkflowStatus.DONE,
+    )
     data = body.model_dump(exclude_unset=True)
     if "options" in data:
         wf.options = _validated_options(session, wf.options, data.pop("options"))
@@ -333,6 +339,33 @@ def retry_workflow(workflow_id: str, session: DbSession) -> WorkflowOut:
             step.status = StepStatus.PENDING
             step.progress = 0.0
             step.error = None
+    _enqueue(session, wf)
+    return _workflow_out(session, wf)
+
+
+@router.post("/workflows/{workflow_id}/rerun", response_model=WorkflowOut)
+def rerun_workflow(
+    workflow_id: str,
+    session: DbSession,
+    from_step: Annotated[str, Query(alias="from")] = "product",
+) -> WorkflowOut:
+    """Run again from a step, e.g. after changing options or connecting a model.
+
+    Earlier steps keep their results, so footage is not prepared twice.
+    """
+    wf = _get(session, workflow_id)
+    _require(wf, WorkflowStatus.DONE, WorkflowStatus.FAILED, WorkflowStatus.CANCELLED)
+    ensure_step_rows(wf)
+    names = [s.name for s in sorted(wf.steps, key=lambda s: s.position)]
+    if from_step not in names:
+        raise HTTPException(422, f"unknown step {from_step}")
+    for step in wf.steps:
+        if names.index(step.name) >= names.index(from_step):
+            step.status = StepStatus.PENDING
+            step.progress = 0.0
+            step.error = None
+            step.message = None
+            step.result = None
     _enqueue(session, wf)
     return _workflow_out(session, wf)
 

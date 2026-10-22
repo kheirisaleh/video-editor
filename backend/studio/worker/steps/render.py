@@ -1,3 +1,4 @@
+import shutil
 from typing import Any
 
 from studio.db import session_scope
@@ -26,6 +27,7 @@ class RenderStep:
                     ctx.upload_dir / c.filename,
                     (c.probe or {}).get("width", 0),
                     (c.probe or {}).get("height", 0),
+                    (c.probe or {}).get("hdr"),
                 )
                 for c in s.query(Clip).filter_by(workflow_id=ctx.workflow_id)
             }
@@ -92,4 +94,6 @@ class RenderStep:
                 f"variant {i} rendered: {info['duration']:.1f}s, "
                 f"{video.stat().st_size / 1e6:.1f} MB"
             )
+        # Overlay images are only needed while rendering.
+        shutil.rmtree(ctx.work_dir / "render", ignore_errors=True)
         return {"outputs": outputs}

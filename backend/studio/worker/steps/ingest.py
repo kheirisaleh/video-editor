@@ -39,6 +39,7 @@ class IngestStep:
             ctx.log(
                 f"{original_name}: {p['width']}x{p['height']}, {p['duration']:.1f}s, "
                 f"{p['fps']} fps, {p['orientation']}"
+                + (f", HDR {p['hdr'].upper()} converted to SDR" if p["hdr"] else "")
             )
 
         total = sum(max(p["duration"], 0.1) for p in probes.values())
@@ -51,7 +52,7 @@ class IngestStep:
             ctx.progress(done / total, f"clip {index}/{len(clips)}: {original_name}")
 
             thumb = thumbs_dir / f"{clip_id}.jpg"
-            ffmpeg.thumbnail(src, thumb, at_seconds=min(1.0, p["duration"] * 0.1))
+            ffmpeg.thumbnail(src, thumb, at_seconds=min(1.0, p["duration"] * 0.1), hdr=p["hdr"])
 
             proxy = proxies_dir / f"{clip_id}.mp4"
             base = done
@@ -66,6 +67,7 @@ class IngestStep:
                 ctx.settings.proxy_height,
                 on_progress=report,
                 should_cancel=ctx.should_cancel,
+                hdr=p["hdr"],
             )
             done += weight
 

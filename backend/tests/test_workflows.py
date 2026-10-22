@@ -9,7 +9,7 @@ from studio.worker.main import Worker
 from studio.worker.pipeline import recover_interrupted
 
 
-def create(client: TestClient, **body: str) -> dict:
+def create(client: TestClient, **body: object) -> dict:
     res = client.post("/api/workflows", json={"product_text": "Teddy office chair", **body})
     assert res.status_code == 201, res.text
     return res.json()
@@ -28,7 +28,14 @@ def upload(client: TestClient, workflow_id: str, path: Path, name: str | None = 
 def test_full_ingest_flow(client: TestClient, sample_videos: dict[str, Path]) -> None:
     wf = create(client, prompt="یه ویدیوی آرام و دنج")
     assert wf["status"] == "draft"
-    assert [s["name"] for s in wf["steps"]] == ["ingest", "analyze", "plan", "render"]
+    assert [s["name"] for s in wf["steps"]] == [
+        "ingest",
+        "product",
+        "analyze",
+        "understand",
+        "plan",
+        "render",
+    ]
 
     upload(client, wf["id"], sample_videos["vertical"], "IMG_0001.MOV")
     upload(client, wf["id"], sample_videos["horizontal"])
@@ -57,7 +64,15 @@ def test_full_ingest_flow(client: TestClient, sample_videos: dict[str, Path]) ->
     assert proxy.status_code == 200
     assert len(proxy.content) > 1000
 
-    assert [s["status"] for s in done["steps"]] == ["done"] * 4
+    # Without a model the vision step is skipped and the rule based planner is used.
+    assert [s["status"] for s in done["steps"]] == [
+        "done",
+        "done",
+        "done",
+        "skipped",
+        "done",
+        "done",
+    ]
     assert len(done["outputs"]) == 3
     output = done["outputs"][0]
     video = client.get(output["video_url"])
@@ -201,3 +216,23 @@ def test_health(client: TestClient) -> None:
     body = client.get("/api/health").json()
     assert body["ok"] is True
     assert body["ffmpeg"] is True
+
+
+def test_iphone_hdr_clip_is_edited(client: TestClient, hlg_video: Path) -> None:
+    wf = create(client, options={"variants": 1, "min_duration": 5, "max_duration": 8})
+    upload(client, wf["id"], hlg_video)
+    client.post(f"/api/workflows/{wf['id']}/submit")
+    with client.websocket_connect("/api/live?after=0") as ws:
+        Worker().run_once()
+        messages = []
+        while True:
+            event = ws.receive_json()
+            if event.get("type") == "log":
+                messages.append(event["payload"]["message"])
+            if event.get("type") == "workflow" and event["payload"].get("status") == "done":
+                break
+    done = client.get(f"/api/workflows/{wf['id']}").json()
+    assert done["status"] == "done", done["error"]
+    assert done["clips"][0]["probe"]["hdr"] == "hlg"
+    assert any("HDR HLG converted to SDR" in m for m in messages)
+    assert len(done["outputs"]) == 1

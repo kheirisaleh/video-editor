@@ -13,11 +13,20 @@ from studio.worker.steps import Step, StepError
 from studio.worker.steps.analyze import AnalyzeStep
 from studio.worker.steps.ingest import IngestStep
 from studio.worker.steps.plan import PlanStep
+from studio.worker.steps.product import ProductStep
 from studio.worker.steps.render import RenderStep
+from studio.worker.steps.understand import UnderstandStep
 
 log = logging.getLogger(__name__)
 
-STEPS: list[Step] = [IngestStep(), AnalyzeStep(), PlanStep(), RenderStep()]
+STEPS: list[Step] = [
+    IngestStep(),
+    ProductStep(),
+    AnalyzeStep(),
+    UnderstandStep(),
+    PlanStep(),
+    RenderStep(),
+]
 
 
 def step_names() -> list[str]:
@@ -25,9 +34,12 @@ def step_names() -> list[str]:
 
 
 def ensure_step_rows(workflow: Workflow) -> None:
-    existing = {s.name for s in workflow.steps}
+    """Create missing step rows; also renumbers rows of workflows made by older versions."""
+    existing = {s.name: s for s in workflow.steps}
     for position, name in enumerate(step_names()):
-        if name not in existing:
+        if name in existing:
+            existing[name].position = position
+        else:
             workflow.steps.append(StepRun(name=name, position=position))
 
 
@@ -117,7 +129,7 @@ def run_workflow(settings: Settings, workflow_id: str) -> WorkflowStatus:
 
         with session_scope() as s:
             row = s.query(StepRun).filter_by(workflow_id=workflow_id, name=step.name).one()
-            row.status = StepStatus.DONE
+            row.status = StepStatus.SKIPPED if result.get("skipped") else StepStatus.DONE
             row.progress = 1.0
             row.result = result
             row.message = None
@@ -127,7 +139,7 @@ def run_workflow(settings: Settings, workflow_id: str) -> WorkflowStatus:
                 EventType.STEP,
                 workflow_id,
                 name=step.name,
-                status=StepStatus.DONE,
+                status=row.status,
                 progress=1.0,
                 result=result,
             )

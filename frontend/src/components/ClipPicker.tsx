@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
-import { formatBytes, t } from "../i18n";
-import { Ltr, ProgressBar } from "./ui";
+import { useEffect, useRef, useState } from "react";
+import { t, ui } from "../i18n";
+import { Icon } from "./ui";
 
 export interface PendingFile {
   key: string;
@@ -16,6 +16,7 @@ export function toPending(files: FileList | File[]): PendingFile[] {
     .map((file) => ({ key: `${file.name}-${file.size}-${file.lastModified}`, file, progress: 0 }));
 }
 
+/** Picked clips as 9:16 tiles with a preview frame, upload progress and a remove button. */
 export function ClipPicker({
   files,
   onAdd,
@@ -30,34 +31,21 @@ export function ClipPicker({
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
+  const dropProps = {
+    onDragOver: (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(true);
+    },
+    onDragLeave: () => setDragging(false),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      if (!disabled) onAdd(toPending(e.dataTransfer.files));
+    },
+  };
+
   return (
-    <div className="space-y-3">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => input.current?.click()}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          if (!disabled) onAdd(toPending(e.dataTransfer.files));
-        }}
-        className={`flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed px-4 py-8 text-center text-sm transition disabled:opacity-50 ${
-          dragging
-            ? "border-cocoa-500 bg-cream-100 dark:bg-cocoa-700"
-            : "border-cream-300 hover:border-cocoa-400 dark:border-cocoa-600"
-        }`}
-      >
-        <svg viewBox="0 0 24 24" className="size-8 text-cocoa-400" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span className="font-medium text-cocoa-700 dark:text-cream-100">{t.pickClips}</span>
-        <span className="text-cocoa-400">{t.dropHint}</span>
-      </button>
+    <div {...dropProps}>
       <input
         ref={input}
         type="file"
@@ -69,36 +57,90 @@ export function ClipPicker({
           e.target.value = "";
         }}
       />
-      {files.length > 0 && (
-        <ul className="space-y-2">
-          {files.map((f, i) => (
-            <li key={f.key} className="rounded-xl bg-cream-100 px-3 py-2 dark:bg-cocoa-700/60">
-              <div className="flex items-center gap-3 text-sm">
-                <span className="w-5 shrink-0 text-cocoa-400">{i + 1}</span>
-                <Ltr className="min-w-0 flex-1 truncate">{f.file.name}</Ltr>
-                <Ltr className="shrink-0 text-xs text-cocoa-400">{formatBytes(f.file.size)}</Ltr>
-                {!disabled && !f.done && (
-                  <button
-                    type="button"
-                    onClick={() => onRemove(f.key)}
-                    className="shrink-0 rounded-lg px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950"
-                    aria-label={t.remove}
-                  >
-                    ✕
-                  </button>
-                )}
-                {f.done && <span className="shrink-0 text-emerald-600">✓</span>}
-              </div>
-              {f.progress > 0 && !f.done && (
-                <div className="mt-2">
-                  <ProgressBar value={f.progress} />
-                </div>
-              )}
-              {f.error && <p className="mt-1 text-xs text-rose-700 dark:text-rose-300">{f.error}</p>}
-            </li>
+      {files.length === 0 ? (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => input.current?.click()}
+          className={`flex w-full flex-col items-center gap-3 rounded-3xl border-2 border-dashed px-4 py-10 text-center transition disabled:opacity-50 ${
+            dragging
+              ? "border-cocoa-500 bg-cream-100 dark:bg-cocoa-700"
+              : "border-cream-300 hover:border-cocoa-400 hover:bg-cream-50 dark:border-cocoa-600 dark:hover:bg-cocoa-700/40"
+          }`}
+        >
+          <span className="flex size-14 items-center justify-center rounded-2xl bg-cocoa-900 text-cream-50 dark:bg-cream-100 dark:text-cocoa-900">
+            <Icon name="plus" className="size-7" />
+          </span>
+          <span className="text-base font-semibold">{ui.create.addClips}</span>
+          <span className="text-sm text-cocoa-400">{t.dropHint}</span>
+        </button>
+      ) : (
+        <ul className={`grid grid-cols-3 gap-2 sm:grid-cols-4 ${dragging ? "opacity-70" : ""}`}>
+          {files.map((f) => (
+            <ClipTile key={f.key} item={f} onRemove={disabled || f.done ? undefined : () => onRemove(f.key)} />
           ))}
+          {!disabled && (
+            <li>
+              <button
+                type="button"
+                onClick={() => input.current?.click()}
+                className="flex aspect-[9/16] w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-cream-300 text-sm font-medium text-cocoa-500 transition hover:border-cocoa-400 dark:border-cocoa-600 dark:text-cream-300"
+              >
+                <Icon name="plus" className="size-6" />
+                {ui.create.addMore}
+              </button>
+            </li>
+          )}
         </ul>
       )}
     </div>
+  );
+}
+
+function ClipTile({ item, onRemove }: { item: PendingFile; onRemove?: () => void }) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(item.file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [item.file]);
+
+  const uploading = item.progress > 0 && !item.done;
+  return (
+    <li className="relative aspect-[9/16] overflow-hidden rounded-2xl bg-cocoa-900">
+      {url && (
+        // The #t fragment makes iOS Safari show a frame instead of a black tile.
+        <video src={`${url}#t=0.1`} muted playsInline preload="metadata" className="size-full object-cover" />
+      )}
+      {uploading && (
+        <div className="absolute inset-x-2 bottom-2 h-1.5 overflow-hidden rounded-full bg-white/30">
+          <div
+            className="h-full rounded-full bg-white transition-[width] duration-300"
+            style={{ width: `${Math.round(item.progress * 100)}%` }}
+          />
+        </div>
+      )}
+      {item.done && (
+        <span className="absolute bottom-2 right-2 flex size-6 items-center justify-center rounded-full bg-emerald-500 text-white">
+          <Icon name="check" className="size-4" />
+        </span>
+      )}
+      {item.error && (
+        <span className="absolute inset-0 flex items-center justify-center bg-rose-900/70 p-2 text-center text-xs text-white">
+          {t.uploadFailed}
+        </span>
+      )}
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={t.remove}
+          className="absolute right-1.5 top-1.5 flex size-7 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur"
+        >
+          <Icon name="close" className="size-4" />
+        </button>
+      )}
+    </li>
   );
 }

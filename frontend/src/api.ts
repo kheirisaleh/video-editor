@@ -42,6 +42,8 @@ export interface WorkflowSummary {
   clip_count: number;
   thumbnail_url: string | null;
   queue_position: number | null;
+  cover_url: string | null;
+  output_count: number;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
@@ -95,6 +97,15 @@ export interface AiSettings {
   shots_per_request: number;
   timeout: number;
   required: boolean;
+  monthly_budget_usd: number;
+  workflow_budget_usd: number;
+}
+
+export interface AiUsage {
+  month_spent: number;
+  month_budget: number;
+  month_calls: number;
+  workflow_budget: number;
 }
 
 export interface AiSettingsInput extends Omit<AiSettings, "api_key_set"> {
@@ -127,6 +138,7 @@ export interface Workflow extends WorkflowSummary {
   steps: Step[];
   outputs: Output[];
   options: RenderOptions;
+  ai_cost: number;
 }
 
 export interface WorkflowInput {
@@ -186,6 +198,7 @@ export const api = {
   music: () => request<Track[]>("GET", "/api/music"),
   ai: () => request<AiSettings>("GET", "/api/settings/ai"),
   saveAi: (input: AiSettingsInput) => request<AiSettings>("PUT", "/api/settings/ai", input),
+  aiUsage: () => request<AiUsage>("GET", "/api/settings/ai/usage"),
   testAi: () => request<AiTestResult>("POST", "/api/settings/ai/test"),
   rerun: (id: string, from: string) =>
     request<Workflow>("POST", `/api/workflows/${id}/rerun?from=${encodeURIComponent(from)}`),

@@ -202,7 +202,18 @@ Each pipeline step (vision, planning, copywriting, quality review, music tagging
   fonts/
 ```
 
-## 11. Settings in the UI
+## 11. The UI
+
+The creator should only have to say what they want, add clips and get the videos. So the app has three tabs and no workflow vocabulary:
+
+* **Videos**: projects as 9:16 covers with live progress rings and a status pill.
+* **Create**: one page with four numbered steps (clips with previews, product, idea, style). Style is three visual choices (look, length, music and text switches); every other option sits under "More options".
+* **Project**: while working, a single friendly stage line and a progress ring; when done, a swipeable gallery with Save video (Web Share with the file on iPhone, so it can go to Photos), Copy caption and Make new versions. Steps, logs, notes and AI cost are folded into Details.
+* **Settings**: AI assistant (provider, key, spending limits, usage), music library, default options, storage.
+
+Projects are named after the product name the product step found, unless the creator gave a title.
+
+### Settings in the UI
 
 * Model providers and per step model assignment
 * Export: resolution, fps, bitrate, target length, number of variants, silent export on or off

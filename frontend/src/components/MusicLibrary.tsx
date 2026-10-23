@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, uploadMusic, type Track } from "../api";
-import { Button, Card, ErrorNote, ProgressBar } from "../components/ui";
+import { Button, ErrorNote, Icon, ProgressBar } from "./ui";
 import { formatBytes, t } from "../i18n";
 
 interface Pending {
@@ -8,7 +8,8 @@ interface Pending {
   progress: number;
 }
 
-export function MusicPage() {
+/** The music library: upload, listen to and delete tracks. */
+export function MusicLibrary() {
   const [tracks, setTracks] = useState<Track[] | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -54,14 +55,7 @@ export function MusicPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-xl font-semibold">{t.music}</h1>
-        <p className="text-sm text-cocoa-400">{t.musicHint}</p>
-      </div>
-      <Button onClick={() => input.current?.click()} className="w-full" disabled={pending.length > 0}>
-        {t.uploadMusic}
-      </Button>
+    <div className="space-y-3">
       <input
         ref={input}
         type="file"
@@ -75,41 +69,44 @@ export function MusicPage() {
       />
       {error && <ErrorNote>{error}</ErrorNote>}
       {pending.map((p) => (
-        <Card key={p.name} className="space-y-2">
+        <div key={p.name} className="space-y-2 rounded-2xl bg-cream-100 p-3 dark:bg-cocoa-900">
           <p className="truncate text-sm">{p.name}</p>
           <ProgressBar value={Math.max(p.progress, 0.02)} active={p.progress >= 1} />
-        </Card>
+        </div>
       ))}
       {tracks === null ? (
-        <p className="text-cocoa-400">{t.loading}</p>
+        <p className="text-sm text-cocoa-400">{t.loading}</p>
       ) : tracks.length === 0 && pending.length === 0 ? (
-        <Card className="py-8 text-center text-cocoa-400">{t.noMusic}</Card>
+        <p className="rounded-2xl bg-cream-100 py-6 text-center text-sm text-cocoa-400 dark:bg-cocoa-900">{t.noMusic}</p>
       ) : (
-        <ul className="space-y-3">
+        <ul className="space-y-2">
           {tracks.map((track) => (
-            <li key={track.name}>
-              <Card className="space-y-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{track.title}</p>
-                    <p className="text-xs text-cocoa-400">
-                      {formatDuration(track.duration)}
-                      {track.tempo ? ` · ${t.bpm(track.tempo)}` : ""} · {formatBytes(track.size_bytes)}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => remove(track)}
-                    className="shrink-0 rounded-lg px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950"
-                  >
-                    {t.remove}
-                  </button>
+            <li key={track.name} className="space-y-2 rounded-2xl bg-cream-100 p-3 dark:bg-cocoa-900">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{track.title}</p>
+                  <p className="text-xs text-cocoa-400">
+                    {formatDuration(track.duration)}
+                    {track.tempo ? ` · ${t.bpm(track.tempo)}` : ""} · {formatBytes(track.size_bytes)}
+                  </p>
                 </div>
-                <audio src={track.url} controls preload="none" className="h-9 w-full" />
-              </Card>
+                <button
+                  onClick={() => remove(track)}
+                  aria-label={t.remove}
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950"
+                >
+                  <Icon name="trash" className="size-4" />
+                </button>
+              </div>
+              <audio src={track.url} controls preload="none" className="h-9 w-full" />
             </li>
           ))}
         </ul>
       )}
+      <Button variant="secondary" onClick={() => input.current?.click()} className="w-full" disabled={pending.length > 0}>
+        <Icon name="plus" className="size-4" />
+        {t.uploadMusic}
+      </Button>
     </div>
   );
 }

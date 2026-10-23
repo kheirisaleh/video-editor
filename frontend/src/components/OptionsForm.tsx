@@ -170,7 +170,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+export function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3 text-sm">
       <span>{label}</span>
@@ -189,7 +189,7 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   );
 }
 
-function Segmented({
+export function Segmented({
   value,
   options,
   onChange,

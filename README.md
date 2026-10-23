@@ -47,7 +47,13 @@ Update to a new version with `git pull && docker compose up -d --build`. Data is
 | Variable | Default | Meaning |
 |---|---|---|
 | `STUDIO_PORT` | `8000` | Port on the host |
+| `STUDIO_BIND` | `0.0.0.0` | Host address to listen on; `127.0.0.1` when a reverse proxy such as Caddy is in front |
 | `STUDIO_DATA` | `./data` | Folder on the host for uploads, exports, music and the database |
+| `STUDIO_WORKER_CPUS` | `2` | CPU cores the render worker may use; it also runs with lower priority than other containers |
+| `STUDIO_WORKER_MEMORY` | `6g` | Memory limit of the render worker (a 9 clip workflow peaked at about 3.2 GB) |
+| `STUDIO_API_MEMORY` | `1g` | Memory limit of the web server |
+
+Put them in a `.env` file next to `docker-compose.yml`.
 
 Everything lives in the data folder, so backing it up backs up everything:
 

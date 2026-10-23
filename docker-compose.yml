@@ -4,9 +4,10 @@ services:
     image: studio:latest
     restart: unless-stopped
     ports:
-      - "${STUDIO_PORT:-8000}:8000"
+      - "${STUDIO_BIND:-0.0.0.0}:${STUDIO_PORT:-8000}:8000"
     volumes:
       - ${STUDIO_DATA:-./data}:/data
+    mem_limit: ${STUDIO_API_MEMORY:-1g}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 30s
@@ -19,6 +20,11 @@ services:
     command: ["studio-worker"]
     volumes:
       - ${STUDIO_DATA:-./data}:/data
+    # Rendering is CPU heavy. Cap it and give it a lower priority than other
+    # services on the same machine, so they stay responsive while a video renders.
+    cpus: ${STUDIO_WORKER_CPUS:-2}
+    cpu_shares: 256
+    mem_limit: ${STUDIO_WORKER_MEMORY:-6g}
     stop_grace_period: 2m
     depends_on:
       api:

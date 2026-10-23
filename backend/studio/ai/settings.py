@@ -23,13 +23,16 @@ class AiSettings(BaseModel):
     api_key: str = ""
     text_model: str = ""
     vision_model: str = ""
-    effort: Literal["low", "medium", "high", "xhigh"] = "high"
+    # medium keeps thinking, and so cost, moderate; it is enough for these short tasks.
+    effort: Literal["low", "medium", "high", "xhigh"] = "medium"
     shots_per_request: int = Field(default=4, ge=1, le=12)
     timeout: float = Field(default=300.0, ge=10, le=3600)
     required: bool = Field(
         default=False,
         description="fail the workflow when the model is unreachable instead of falling back",
     )
+    monthly_budget_usd: float = Field(default=10.0, ge=0, le=10_000, description="0 = no limit")
+    workflow_budget_usd: float = Field(default=1.0, ge=0, le=1_000, description="0 = no limit")
 
     @property
     def enabled(self) -> bool:
@@ -63,6 +66,8 @@ class AiSettingsOut(BaseModel):
     shots_per_request: int
     timeout: float
     required: bool
+    monthly_budget_usd: float
+    workflow_budget_usd: float
 
 
 class AiSettingsIn(BaseModel):
@@ -71,10 +76,12 @@ class AiSettingsIn(BaseModel):
     api_key: str | None = Field(default=None, description="None keeps the stored key")
     text_model: str = ""
     vision_model: str = ""
-    effort: Literal["low", "medium", "high", "xhigh"] = "high"
+    effort: Literal["low", "medium", "high", "xhigh"] = "medium"
     shots_per_request: int = Field(default=4, ge=1, le=12)
     timeout: float = Field(default=300.0, ge=10, le=3600)
     required: bool = False
+    monthly_budget_usd: float = Field(default=10.0, ge=0, le=10_000)
+    workflow_budget_usd: float = Field(default=1.0, ge=0, le=1_000)
 
 
 def load_ai(session: Session) -> AiSettings:

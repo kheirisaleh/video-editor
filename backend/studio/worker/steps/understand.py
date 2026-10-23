@@ -7,13 +7,32 @@ from studio.ai.product import ProductCard
 from studio.ai.shots import ShotLabel, label_shots
 from studio.db import session_scope
 from studio.models import Clip
-from studio.planning.baseline import candidates_from
+from studio.planning.baseline import Candidate, candidates_from
 from studio.worker.context import StepContext
 from studio.worker.steps import ai_client, ai_failed, skipped
 from studio.worker.steps.analyze import ANALYSIS_FILE
 from studio.worker.steps.product import load_card
 
 LABELS_FILE = "labels.json"
+# The vision model only looks at the best moments; this keeps the AI cost of a workflow
+# predictable even with many long clips.
+MAX_MOMENTS = 36
+
+
+def best_moments(cands: list[Candidate], limit: int = MAX_MOMENTS) -> list[Candidate]:
+    """The best scored moments, at least the best one of every clip, in clip order."""
+    if len(cands) <= limit:
+        return cands
+    ranked = sorted(cands, key=lambda c: c.score, reverse=True)
+    chosen = {
+        id(next(c for c in ranked if c.clip_id == clip))
+        for clip in dict.fromkeys(c.clip_id for c in cands)
+    }
+    for c in ranked:
+        if len(chosen) >= limit:
+            break
+        chosen.add(id(c))
+    return [c for c in cands if id(c) in chosen]
 
 
 def load_labels(work_dir: Path) -> dict[str, ShotLabel]:
@@ -41,10 +60,10 @@ class UnderstandStep:
                 for c in s.query(Clip).filter_by(workflow_id=ctx.workflow_id)
                 if c.proxy
             }
+        moments = best_moments([c for c in candidates_from(analysis) if c.clip_id in proxies])
         shots = [
             {"id": c.id, "proxy": proxies[c.clip_id], "start": c.start, "end": c.end}
-            for c in candidates_from(analysis)
-            if c.clip_id in proxies
+            for c in moments
         ]
         card = load_card(ctx.work_dir) or ProductCard(name="product")
         ctx.progress(0.02, f"{len(shots)} moments, {client.name}")

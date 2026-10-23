@@ -20,6 +20,15 @@ def load_card(work_dir: Path) -> ProductCard | None:
     return ProductCard.model_validate(json.loads(path.read_text())["card"])
 
 
+def project_title(title: str, text: str, url: str, name: str) -> str:
+    """Replace the automatic title (start of the description or the link) by the product name."""
+    automatic = (text or url)[:60]
+    if (title and title != automatic) or not name.strip():
+        return title
+    name = name.strip()
+    return (name[0].upper() + name[1:])[:60]
+
+
 class ProductStep:
     """Read the product link and build the product card."""
 
@@ -64,6 +73,10 @@ class ProductStep:
             "page": {"url": page.url, "title": page.title, "error": page.error} if page else None,
         }, indent=1, ensure_ascii=False))  # fmt: skip
         ctx.log(f"product: {card.name}; features: {', '.join(card.features) or 'none'}")
+        with session_scope() as s:
+            wf = s.get(Workflow, ctx.workflow_id)
+            assert wf is not None
+            wf.title = project_title(wf.title, text, url, card.name)
         return {
             "name": card.name,
             "features": len(card.features),

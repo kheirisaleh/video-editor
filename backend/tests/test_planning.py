@@ -206,3 +206,14 @@ def test_options_validation() -> None:
     with pytest.raises(ValueError):
         RenderOptions(min_duration=40, max_duration=20)
     assert RenderOptions(hashtags=[" glow ", ""]).hashtags == ["#glow"]
+
+
+def test_best_moments_keep_every_clip() -> None:
+    from studio.planning.baseline import candidates_from
+    from studio.worker.steps.understand import best_moments
+
+    cands = candidates_from(analysis(clips=10, segments=6))
+    chosen = best_moments(cands, limit=12)
+    assert len(chosen) == 12
+    assert {c.clip_id for c in chosen} == {f"c{i}" for i in range(10)}
+    assert best_moments(cands[:5], limit=12) == cands[:5]

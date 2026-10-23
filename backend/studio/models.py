@@ -113,3 +113,23 @@ class AppSetting(Base):
 
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class AiUsage(Base):
+    """One model call and what it cost, for the budget limits and the usage display."""
+
+    __tablename__ = "ai_usage"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        default=lambda: utcnow().replace(tzinfo=None), index=True
+    )
+    workflow_id: Mapped[str | None] = mapped_column(String(32), index=True, nullable=True)
+    step: Mapped[str] = mapped_column(String(32))
+    provider: Mapped[str] = mapped_column(String(16))
+    model: Mapped[str] = mapped_column(String(64))
+    input_tokens: Mapped[int] = mapped_column(default=0)
+    output_tokens: Mapped[int] = mapped_column(default=0)
+    cache_read_tokens: Mapped[int] = mapped_column(default=0)
+    cache_write_tokens: Mapped[int] = mapped_column(default=0)
+    cost_usd: Mapped[float] = mapped_column(default=0.0)

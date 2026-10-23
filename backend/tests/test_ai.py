@@ -10,6 +10,7 @@ from studio.ai.product import fetch_page, parse_page
 from studio.ai.settings import AiSettings
 from studio.config import get_settings
 from studio.worker.main import Worker
+from studio.worker.steps.product import project_title
 from tests.fake_ai import PRODUCT_HTML, FakeAi
 
 
@@ -69,7 +70,7 @@ def test_connection_test_with_claude(client: TestClient, fake: FakeAi) -> None:
     assert body["model"] == "claude-opus-5-5"
     assert body["fallbacks"] == "default"
     assert body["output_config"]["format"]["type"] == "json_schema"
-    assert body["output_config"]["effort"] == "high"
+    assert body["output_config"]["effort"] == "medium"
     assert any(c["type"] == "image" for c in fake.requests[1]["body"]["messages"][0]["content"])
 
 
@@ -207,3 +208,75 @@ def test_product_page_parsing(fake: FakeAi) -> None:
     fetched = fetch_page(f"{fake.url}/product/1")
     assert fetched.error is None and fetched.title == "Cloud Cream 50ml"
     assert fetch_page(f"{fake.url}/missing").error is not None
+
+
+def test_costs_are_recorded_per_workflow(
+    client: TestClient, fake: FakeAi, sample_videos: dict[str, Path]
+) -> None:
+    configure(client, provider="anthropic", api_key="k", base_url=fake.url)
+    done = run_workflow(client, sample_videos)
+    assert done["status"] == "done"
+    # The fake answers every call with 10 input and 10 output tokens at Opus 5.5 prices.
+    calls = len(fake.requests)
+    assert done["ai_cost"] == pytest.approx(calls * (10 * 4 + 10 * 20) / 1e6, abs=1e-6)
+    usage = client.get("/api/settings/ai/usage").json()
+    assert usage["month_calls"] == calls
+    assert usage["month_budget"] == 10.0
+
+
+def test_workflow_budget_stops_ai_and_falls_back(
+    client: TestClient, fake: FakeAi, sample_videos: dict[str, Path]
+) -> None:
+    # A budget far below one call's estimate: no call may be made at all.
+    configure(
+        client, provider="anthropic", api_key="k", base_url=fake.url, workflow_budget_usd=0.0001
+    )
+    done = run_workflow(client, sample_videos)
+    assert done["status"] == "done", done["error"]
+    assert fake.requests == []
+    steps = {s["name"]: s for s in done["steps"]}
+    assert steps["understand"]["status"] == "skipped"
+    assert "budget" in steps["understand"]["result"]["skipped"]
+    assert steps["plan"]["result"]["planner"] == "rule based"
+    assert done["ai_cost"] == 0
+
+
+def test_monthly_budget_blocks_calls(client: TestClient, fake: FakeAi) -> None:
+    from studio.ai.budget import month_start
+    from studio.db import session_scope
+    from studio.models import AiUsage
+
+    configure(client, provider="anthropic", api_key="k", base_url=fake.url, monthly_budget_usd=1.0)
+    with session_scope() as s:
+        s.add(
+            AiUsage(
+                step="x",
+                provider="anthropic",
+                model="claude-opus-5-5",
+                cost_usd=0.999,
+                created_at=month_start(),
+            )
+        )
+    result = client.post("/api/settings/ai/test").json()
+    assert result["ok"] is False
+    assert "monthly AI budget" in result["detail"]
+    assert fake.requests == []
+
+
+def test_local_models_cost_nothing(client: TestClient, fake: FakeAi) -> None:
+    configure(
+        client,
+        provider="openai",
+        base_url=f"{fake.url}/v1",
+        text_model="m",
+        monthly_budget_usd=0.0001,
+    )
+    assert client.post("/api/settings/ai/test").json()["text_ok"] is True
+    assert client.get("/api/settings/ai/usage").json()["month_spent"] == 0
+
+
+def test_project_is_named_after_the_product() -> None:
+    url = "https://shop.example/p/123?utm=x"
+    assert project_title(url[:60], "", url, "cloud cream") == "Cloud cream"
+    assert project_title("My chair", "", url, "cloud cream") == "My chair"
+    assert project_title("soft blanket", "soft blanket", "", "") == "soft blanket"

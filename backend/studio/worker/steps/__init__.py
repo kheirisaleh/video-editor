@@ -1,5 +1,6 @@
 from typing import Any, Protocol
 
+from studio.ai.budget import BudgetedClient
 from studio.ai.client import AiClient, AiError, make_client
 from studio.ai.settings import AiSettings, load_ai
 from studio.db import session_scope
@@ -25,10 +26,13 @@ def ai_client(ctx: StepContext) -> tuple[AiSettings, AiClient | None]:
     with session_scope() as s:
         settings = load_ai(s)
     try:
-        return settings, make_client(settings)
+        client = make_client(settings)
     except AiError as exc:
         ai_failed(ctx, settings, exc)
         return settings, None
+    if client is None:
+        return settings, None
+    return settings, BudgetedClient(client, settings, ctx.workflow_id, ctx.step_name)
 
 
 def ai_failed(ctx: StepContext, settings: AiSettings, exc: Exception) -> None:

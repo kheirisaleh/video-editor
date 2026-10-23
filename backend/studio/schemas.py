@@ -60,6 +60,8 @@ class WorkflowSummary(BaseModel):
     error: str | None
     clip_count: int
     thumbnail_url: str | None
+    cover_url: str | None = None
+    output_count: int = 0
     queue_position: int | None
     created_at: datetime
     started_at: datetime | None
@@ -86,6 +88,7 @@ class WorkflowOut(WorkflowSummary):
     steps: list[StepOut]
     outputs: list[OutputOut]
     options: RenderOptions
+    ai_cost: float = 0.0
 
 
 class Health(BaseModel):

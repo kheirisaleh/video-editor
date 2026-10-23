@@ -9,6 +9,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from studio.ai.budget import spent
 from studio.config import Settings, get_settings
 from studio.db import get_session, session_scope
 from studio.events import EventType, emit
@@ -83,7 +84,10 @@ def _progress(wf: Workflow) -> float:
 
 def _summary_fields(wf: Workflow, positions: dict[str, int]) -> dict:
     first = next((c for c in wf.clips if c.thumbnail), None)
+    outputs = _outputs(wf)
     return {
+        "cover_url": outputs[0].cover_url if outputs else None,
+        "output_count": len(outputs),
         "id": wf.id,
         "title": wf.title,
         "status": wf.status,
@@ -109,6 +113,7 @@ def _workflow_out(session: Session, wf: Workflow) -> WorkflowOut:
         steps=[StepOut.model_validate(s) for s in wf.steps],
         outputs=_outputs(wf),
         options=workflow_options(session, wf.options),
+        ai_cost=round(spent(workflow_id=wf.id), 6),
     )
 
 

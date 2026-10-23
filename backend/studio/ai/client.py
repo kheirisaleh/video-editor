@@ -42,6 +42,17 @@ class Image:
 Part = str | Image
 
 
+@dataclass
+class Usage:
+    """Tokens of one call, as reported by the provider."""
+
+    model: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+
+
 class AiClient(Protocol):
     name: str
 
@@ -69,6 +80,7 @@ def make_client(settings: AiSettings) -> AiClient | None:
 class ClaudeClient:
     def __init__(self, settings: AiSettings) -> None:
         self.settings = settings
+        self.last_usage: Usage | None = None
         self.name = f"Claude ({settings.model_for(False)})"
         self.client = anthropic.Anthropic(
             api_key=settings.resolved_api_key(),
@@ -134,6 +146,14 @@ class ClaudeClient:
         except anthropic.APIConnectionError as exc:
             raise AiError("cannot reach the Claude API") from exc
 
+        u = response.usage
+        self.last_usage = Usage(
+            model=response.model or model,
+            input_tokens=u.input_tokens or 0,
+            output_tokens=u.output_tokens or 0,
+            cache_read_tokens=getattr(u, "cache_read_input_tokens", 0) or 0,
+            cache_write_tokens=getattr(u, "cache_creation_input_tokens", 0) or 0,
+        )
         if response.stop_reason == "refusal":
             raise AiError("the model declined this request")
         if response.stop_reason == "max_tokens":
@@ -152,6 +172,7 @@ class OpenAICompatibleClient:
             headers["Authorization"] = f"Bearer {key}"
         self.http = httpx.Client(timeout=settings.timeout, headers=headers)
         self._json_schema_supported = True
+        self.last_usage: Usage | None = None
 
     def json(
         self,
@@ -194,6 +215,12 @@ class OpenAICompatibleClient:
             body["response_format"] = {"type": "json_object"}
 
         data = self._post(body)
+        u = data.get("usage") or {}
+        self.last_usage = Usage(
+            model=model,
+            input_tokens=int(u.get("prompt_tokens") or 0),
+            output_tokens=int(u.get("completion_tokens") or 0),
+        )
         try:
             text = data["choices"][0]["message"]["content"] or ""
         except (KeyError, IndexError, TypeError) as exc:

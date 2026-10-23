@@ -1,6 +1,6 @@
 # Studio
 
-Self hosted service that turns raw product footage into ready to post TikTok videos in the creator's own aesthetic. Upload clips from the phone, add the product link or description and an optional idea (English or Persian), and follow every workflow live while it waits in the queue and runs.
+Self hosted service that turns raw product footage into ready to post TikTok videos in the creator's own aesthetic. Upload clips from the phone, add the product link or description and an optional idea (English or Persian), and watch the videos being made live. Finished videos are saved to the phone with one tap.
 
 Documentation:
 
@@ -19,12 +19,11 @@ cd video-editor
 docker compose up -d --build
 ```
 
-Open `http://<server-ip>:8000` on the phone or desktop. On the phone use "Add to Home Screen" to install it like an app. Then:
+Open `http://<server-ip>:8000` on the phone or desktop. On the phone use "Add to Home Screen" to install it like an app. The app has three tabs:
 
-1. **Settings, AI model**: connect a model (see below) and press **Test connection**.
-2. **Music**: add a few royalty free tracks (mp3, m4a, wav). They are analysed for tempo and beats on upload.
-3. **Settings**: set your default video options once.
-4. **New**: choose footage, add the product link or description, write your idea in English or Persian, adjust the options if needed and start.
+* **Videos**: every project with its cover, live progress and how many videos are ready. Open one to play the versions, **Save video** (on iPhone this opens the share sheet, so the video goes straight to Photos), **Copy caption**, or **Make new versions**.
+* **Create**: four simple steps. Add your clips, the product link or a description, your idea in any language (optional), then pick the look (Mix, Clean, Elegant), the length (Short, Medium, Long) and whether you want music and text. **More options** has every setting from the table below.
+* **Settings**: the AI assistant with its spending limits, the music library (add a few royalty free mp3, m4a or wav tracks; tempo and beats are analysed on upload), default video settings and storage.
 
 ## Connecting an AI model
 
@@ -38,7 +37,11 @@ The model watches your shots, picks the opening moment, matches every overlay te
 
 For Ollama on another machine, start it so it listens on the network (`OLLAMA_HOST=0.0.0.0 ollama serve`) and pull the models first. Small local models work better with fewer **Shots per request**.
 
-If the model is not configured or not reachable, the workflow still finishes with the rule based editor and says so on the workflow page. Turn on **Require the model** to fail instead; **Retry** then continues once the model is back. **Edit again** on a finished workflow plans and renders again with the current options and model, without preparing the footage again.
+If the model is not configured or not reachable, the video is still made with the rule based editor and the project details say so. Turn on **Require the model** to fail instead; **Retry** then continues once the model is back. **Make new versions** on a finished project plans and renders again with the current options and model, without preparing the footage again.
+
+### Spending limits
+
+Claude is paid per use, so Settings has two limits: **per month** (default $10) and **per video** (default $1). Every model call is recorded with its real token cost, and before each call the expected cost is checked against what is left. When a limit would be crossed, the AI stops and the video is finished by the rule based editor, so a video is never lost because of the budget. Settings shows what was spent this month; the details of every project show its AI cost. A typical video with 8 clips costs about $0.20 with the default model and medium effort. Local models cost nothing and have no limit. For a hard guarantee, also set a spend limit in the Anthropic console.
 
 The API key is stored on the server only and never sent back to the browser. Instead of the settings page it can also be given as the `STUDIO_AI_API_KEY` environment variable.
 
@@ -82,7 +85,7 @@ data/
 
 ### Options
 
-Defaults are set on the Settings page; every workflow can override them.
+Defaults are set on the Settings page; every video can override them under **More options**.
 
 | Option | Effect |
 |---|---|

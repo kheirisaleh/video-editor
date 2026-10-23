@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from studio import music as library
+from studio.ai import budget
 from studio.ai.client import AiError, Image, make_client
 from studio.ai.settings import AiSettingsIn, AiSettingsOut, load_ai, public, save_ai
 from studio.config import Settings, get_settings
@@ -186,6 +187,18 @@ def put_ai(body: AiSettingsIn, session: DbSession) -> AiSettingsOut:
     return public(save_ai(session, body))
 
 
+class AiUsageOut(BaseModel):
+    month_spent: float
+    month_budget: float
+    month_calls: int
+    workflow_budget: float
+
+
+@router.get("/settings/ai/usage", response_model=AiUsageOut)
+def ai_usage(session: DbSession) -> AiUsageOut:
+    return AiUsageOut(**budget.summary(load_ai(session)))
+
+
 @router.post("/settings/ai/test", response_model=AiTestResult)
 def test_ai(session: DbSession) -> AiTestResult:
     """Ask the configured model two tiny questions: one in text, one about an image."""
@@ -195,8 +208,9 @@ def test_ai(session: DbSession) -> AiTestResult:
     started = time.monotonic()
     result = AiTestResult(ok=False, provider=settings.provider)
     try:
-        client = make_client(settings)
-        assert client is not None
+        inner = make_client(settings)
+        assert inner is not None
+        client = budget.BudgetedClient(inner, settings, None, "test")
         answer = client.json(
             system="You check connectivity. Translate the Persian text to English.",
             parts=["کرم آبرسان"],
